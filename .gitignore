@@ -1,3 +1,5 @@
 .*.sw?
 *.o
 pvdid-daemon
+*.so
+*.a
