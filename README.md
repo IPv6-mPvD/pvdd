@@ -1,7 +1,7 @@
 # pvdid-daemon
 
 This utility is intended to gather various pvd related information and to
-server as a transient repository.
+serve as a transient repository.
 
 This information is coming from multiple sources and can be queried by clients
 in synchronous or asynchronous ways.
@@ -229,6 +229,22 @@ disappears.
 
 In addition to the PVDID_NEW_PVDID and PVDID_DEL_PVDID, a notification message PVDID_LIST
 with the updated list of PvD will be issued.
+
+Example : the pvd.cisco.com PvD is registered, then the pvd.free.fr PvD :
+
+~~~~
+PVDID_NEW_PVDID pvd.cisco.com
+PVDID_LIST pvd.cisco.com
+PVDID_NEW_PVDID pvd.free.fr
+PVDID_LIST pvd.free.fr pvd.cisco.com
+~~~~
+
+We now remove the pvd.cisco.com PvD :
+
+~~~~
+PVDID_DEL_PVDID pvd.cisco.com
+PVDID_LIST pvd.free.fr
+~~~~
 
 
 ### Attributes
