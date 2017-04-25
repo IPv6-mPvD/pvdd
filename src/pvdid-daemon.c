@@ -820,11 +820,6 @@ static	int	DispatchMessage(char *msg, int ix)
 	int s = lTabClients[ix].s;
 	int type = lTabClients[ix].type;
 
-	// Discard empty lines
-	if (msg[0] == '\0') {
-		return(0);
-	}
-
 	DLOG("handling message %s on socket %d, type %d\n", msg, s, type);
 
 	// Only one kind of promotion for now (more a restriction
@@ -943,7 +938,9 @@ static	int	DispatchMessage(char *msg, int ix)
 		}
 
 		// Unknown message : don't fail on error
-		DLOG("invalid message received (%s) on a control socket\n", msg);
+		if (msg[0] != '\0') {
+			DLOG("invalid message received (%s) on a control socket\n", msg);
+		}
 
 		return(0);
 	}
@@ -990,7 +987,9 @@ static	int	DispatchMessage(char *msg, int ix)
 	}
 
 	// Unknown message : don't fail on error
-	DLOG("invalid message received (%s) on a general socket\n", msg);
+	if (msg[0] != '\0') {
+		DLOG("invalid message received (%s) on a general socket\n", msg);
+	}
 	return(0);
 
 BadExit :
