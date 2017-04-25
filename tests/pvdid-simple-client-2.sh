@@ -1,0 +1,8 @@
+#!/bin/sh
+
+{
+	echo PVDID_GET_ATTRIBUTES '*'
+	echo PVDID_SUBSCRIBE '*'
+	echo PVDID_SUBSCRIBE_NOTIFICATIONS
+	sleep 1000
+} | nc 0.0.0.0 10101
