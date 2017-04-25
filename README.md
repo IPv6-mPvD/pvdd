@@ -81,7 +81,8 @@ Control clients will not receive any notification on their control connection.
 Example of such control clients can be :
 
 * script triggered by DHCPV6 to provide DNS related information
-* script monitoring extra PVD information (https://<pvdId>/pvd.json)
+* script monitoring extra PVD information (https://\<pvdId\>/pvd.json)
+
 
 ## Regular clients
 These clients can perform the following operations :
@@ -92,6 +93,7 @@ These clients can perform the following operations :
 * subscribe/unsubscribe to modifications of at least one of the attributes of a given PVDID
 * subscribe/unsubscribe to the modifications of the PVDID list
 
+
 ## Notifications
 The daemon will notify clients having subscribed when some relevant changes happen :
 
@@ -99,8 +101,9 @@ The daemon will notify clients having subscribed when some relevant changes happ
 the full resulting list of PvD is also notified
 * one or more of the attributes of a given PvD has changed
 
+
 ## Messages format
-The section here describes the format of the messages. They are usually hidden if the companion
+This section describes the format of the messages. They are usually hidden if the companion
 library is used. We however define them to allow implementation of bridges for any language, or
 for direct use in scripts.
 
@@ -111,25 +114,26 @@ lua, etc.).
 
 We will describe the messages sent by both clients and the daemon (aka, the server).
 
-All messages must end with a trailing \n. We will omit it in the descriptions below.o
+All messages must end with a trailing \n. We will omit it in the descriptions below.
 
-PvD are specified by a FQDN (such as pvd.cisco.com for example) <pvdId> value.
+PvD are specified by a FQDN (such as pvd.cisco.com for example) \<pvdId\> value.
 A handle, aka a numerical value, can be associated to a PvD. This is a uniquely generated
-value which can be used in certain API (to be defined). It is specified by <pvdIdHandle>
+value which can be used in certain API (to be defined). It is specified by \<pvdIdHandle\>
 in the messages descriptions below.
 
 ### Clients
 
 #### Promotion messages
-A client wishing its connection being upgrade to a control connection must send the following on the
-socket :
+A client wishing its connection to be upgraded to a control connection must send the following
+message on the socket :
 
 ~~~~
 PVDID_CONNECTION_PROMOTE_CONTROL
 ~~~~
 
 Once the connection has been promoted, only control messages can be sent over the connection.
-Other messages will be ignored.
+Other messages will be ignored. For now, no message except error messages will be sent by
+the server to the control clients.
 
 #### Query messages
 The following messages permit a client querying part of the daemon's database :
@@ -139,9 +143,13 @@ PVDID_GET_LIST
 PVDID_GET_ATTRIBUTES <pvdId>
 ~~~~
 
-Here, <pvdId> is a FQDN PvD name.
+Here, \<pvdId\> is a FQDN PvD name.
 
 PVDID_GET_LIST allows retrieving the list of the currently registered PvD.
+PVDID_GET_ATTRIBUTES allows retrieving ALL attributes for a given PvD.
+
+If \<pvdId\> is * (star), the attributes for all currently registered PvD
+will be sent back.
 
 #### Subscription messages
 By default, regular (aka non control) clients will only receive on their connection replies
@@ -159,10 +167,10 @@ PVDID_SUBSCRIBE <pvdId>
 PVDID_UNSUBSCRIBE <pvdId>
 ~~~~
 
-The first subscription will allow general notifications to be received (ie, notifications not
+The first subscription allows general notifications to be received (ie, notifications not
 tied to a specific PvD).
 
-The second subscription message will allow notifications to be received for a PvD of interest to
+The second subscription message allows notifications to be received for a PvD of interest to
 the client.
 
 The notification messages are described below, in the server's section.
@@ -174,9 +182,33 @@ Control promoted connections can send the following messages to the server :
 PVDID_CREATE_PVDID <pvdIdHandle> <pvdId>
 PVDID_REMOVE_PVDID <pvdId>
 PVDID_BEGIN_TRANSACTION <pvdId>
-PVDID_SET_ATTRIBUTE
+PVDID_SET_ATTRIBUTE <pvdId> <attributeName> <attributeValue>
 PVDID_END_TRANSACTION <pvdId>
 ~~~~
+
+PVDID_CREATE_PVDID allows registering a new PvD. The \<pvdIdHandle\> value is intended for
+future use and can be set to 0 for now.
+PVDID_REMOVE_PVDID unregisters a PvD. Note that clarifications still need to be done
+on the meaning of a valid (aka registered) PvD.
+
+Control clients can create/modify attributes for a given PvD. When an attribute has
+changed, the set of attributes may be notified to clients having subscribed for this
+PvD. Some control clients may want to set multiple attributes. To avoid having
+multiple notifications being sent for every modification, control clients must
+use the PVDID_BEGIN_TRANSACTION and PVDID_END_TRANSACTION messages to indicate
+that the notification must only happen once all attributes have been set.
+
+Thus, a typical attribute modification sequence looks like :
+
+~~~~
+PVDID_BEGIN_TRANSACTION <pvdId>
+PVDID_SET_ATTRIBUTE <pvdId> <attributeName1> <attributeValue1>
+PVDID_SET_ATTRIBUTE <pvdId> <attributeName2> <attributeValue2>
+...
+PVDID_END_TRANSACTION <pvdId>
+~~~~
+
+PVDID_SET_ATTRIBUTE messages received outside a transaction will be ignored.
 
 Messages that extend accross multiple lines (says #n line) must be preceded by :
 
@@ -260,7 +292,7 @@ The attributes are sent back as a stringified JSON object. They can be queried o
 subscribed for this PvD).
 
 Example :
-The PVDID_GET_ATTRIBUTES pvd.cisco.com query results in the following message (for example) to be received :
+The +PVDID_GET_ATTRIBUTES pvd.cisco.com+ query results in the following (totally unconsistent) message (for example) to be received :
 
 ~~~~
 PVDID_MULTILINE 14
@@ -269,7 +301,7 @@ PVDID_ATTRIBUTES pvd.cisco.com
         "pvdId" : "pvd.cisco.com",
         "pvdIdHandle" : 100,
         "sequenceNumber" : 0,
-        "hFlag" : 0,
+        "hFlag" : 1,
         "lFlag" : 0,
         "RDNSS" : ["8.8.8.8", "8.8.4.4", "8.8.2.2"],
         "DNSSL" : ["orange.fr", "free.fr"],
