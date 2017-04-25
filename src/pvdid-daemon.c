@@ -216,6 +216,52 @@ static	t_PvdId	*GetPvdId(char *pvdId)
 	return(NULL);
 }
 
+// RemoveSubscription : remove a given pvdId from the list of subscribed pvdId
+// for a client. Special case : if the given pvdId is NULL, the whole subscription
+// list is released
+static	int	RemoveSubscription(int ix, char *pvdId)
+{
+	t_PvdIdNameList	*pt = lTabClients[ix].Subscription;
+	t_PvdIdNameList	*ptNext = NULL;
+	t_PvdIdNameList	*ptPrev = NULL;
+
+	while (pt != NULL) {
+		ptNext = pt->next;
+
+		if (EQSTR(pt->pvdId, pvdId)) {
+			free(pt->pvdId);
+			free(pt);
+			if (ptPrev == NULL) {
+				lTabClients[ix].Subscription = ptNext;
+			}
+			else {
+				ptPrev->next = ptNext;
+			}
+			return(0);
+		}
+		ptPrev = pt;
+		pt = ptNext;
+	}
+	return(0);
+}
+
+// ReleaseSubscriptionsList : release the list of subscriptions for a given
+// client
+static	void	ReleaseSubscriptionsList(int ix)
+{
+	t_PvdIdNameList *pt = lTabClients[ix].Subscription;
+	t_PvdIdNameList *ptNext = NULL;
+
+	while (pt != NULL) {
+		ptNext = pt->next;
+		free(pt->pvdId);
+		free(pt);
+		pt = ptNext;
+	}
+	lTabClients[ix].Subscription = NULL;
+	return;
+}
+
 // ReleaseClient : unregister a client (typically when the socket with the client
 // is reporting an I/O error)
 // ix is supposed to be within range
@@ -229,7 +275,7 @@ static	void	ReleaseClient(int ix)
 		free(pt->pvdIdTransaction);
 		pt->pvdIdTransaction = NULL;
 	}
-	RemoveSubscription(ix, NULL);
+	ReleaseSubscriptionsList(ix);
 	if (pt->s != -1) {
 		close(pt->s);
 	}
@@ -263,47 +309,6 @@ static	int	AddSubscription(int ix, char *pvdId)
 	pt->next = lTabClients[ix].Subscription;
 	lTabClients[ix].Subscription = pt;
 
-	return(0);
-}
-
-// RemoveSubscription : remove a given pvdId from the list of subscribed pvdId
-// for a client. Special case : if the given pvdId is NULL, the whole subscription
-// list is released
-static	int	RemoveSubscription(int ix, char *pvdId)
-{
-	t_PvdIdNameList	*pt = lTabClients[ix].Subscription;
-	t_PvdIdNameList	*ptNext = NULL;
-	t_PvdIdNameList	*ptPrev = NULL;
-
-	// Special case for pvdId == NULL => we will completely
-	// release the list
-	if (pvdId == NULL) {
-		while (pt != NULL) {
-			ptNext = pt->next;
-			free(pt->pvdId);
-			free(pt);
-			pt = ptNext;
-		}
-		return(0);
-	}	
-
-	while (pt != NULL) {
-		ptNext = pt->next;
-
-		if (EQSTR(pt->pvdId, pvdId)) {
-			free(pt->pvdId);
-			free(pt);
-			if (ptPrev == NULL) {
-				lTabClients[ix].Subscription = ptNext;
-			}
-			else {
-				ptPrev->next = ptNext;
-			}
-			return(0);
-		}
-		ptPrev = pt;
-		pt = ptNext;
-	}
 	return(0);
 }
 
@@ -634,7 +639,7 @@ static	int	NotifyPvdIdAttributes(t_PvdId *PtPvdId)
 			continue;
 		}
 		while (pt != NULL) {
-			if (EQSTR(pt->pvdId, pvdId)) {
+			if (EQSTR(pt->pvdId, pvdId) || EQSTR(pt->pvdId, "*")) {
 				FlagInterested = true;
 				break;
 			}
@@ -665,7 +670,7 @@ static	int	NotifyPvdIdAttributes(t_PvdId *PtPvdId)
 		}
 
 		while (pt != NULL) {
-			if (EQSTR(pt->pvdId, pvdId)) {
+			if (EQSTR(pt->pvdId, pvdId) || EQSTR(pt->pvdId, "*")) {
 				if (SendMultiLines(s, Prefix, JsonString, NULL) == -1) {
 					ReleaseClient(i);
 				}
@@ -717,6 +722,20 @@ static	int	SendAllAttributes(int s, char *pvdId)
 
 	DLOG("send all attributes for pvdid %s on socket %d\n", pvdId, s);
 
+	// Recursive call in case the client wants to receive the
+	// attributes for all currently registered PvD
+	if (EQSTR(pvdId, "*")) {
+		t_PvdId	*PtPvdId;
+
+		for (PtPvdId = lFirstPvdId; PtPvdId != NULL; PtPvdId = PtPvdId->next) {
+			if ((rc = SendAllAttributes(s, PtPvdId->pvdId)) != 0) {
+				return(rc);
+			}
+		}
+		return(0);
+	}
+
+	// Nominal case
 	if ((PtPvdId = GetPvdId(pvdId)) == NULL) {
 		return(0);
 	}
@@ -801,6 +820,11 @@ static	int	DispatchMessage(char *msg, int ix)
 	int s = lTabClients[ix].s;
 	int type = lTabClients[ix].type;
 
+	// Discard empty lines
+	if (msg[0] == '\0') {
+		return(0);
+	}
+
 	DLOG("handling message %s on socket %d, type %d\n", msg, s, type);
 
 	// Only one kind of promotion for now (more a restriction
@@ -808,12 +832,11 @@ static	int	DispatchMessage(char *msg, int ix)
 	if (EQSTR(msg, "PVDID_CONNECTION_PROMOTE_CONTROL")) {
 		// TODO : perform some credentials verifications
 		if (lTabClients[ix].type == SOCKET_CONTROL) {
-			// Already promoted (no way back)
+			// Already promoted (no way back to regular connection)
 			return(0);
 		}
 		if (lTabClients[ix].Subscription != NULL) {
-			free(lTabClients[ix].Subscription);
-			lTabClients[ix].Subscription = NULL;
+			ReleaseSubscriptionsList(ix);
 		}
 		lTabClients[ix].type = SOCKET_CONTROL;
 
@@ -1185,56 +1208,5 @@ int	main(int argc, char **argv)
 
 	return(0);
 }
-
-/*
- * Messages structures
- */
-// General comment : the clients and the daemon communicate via sockets on 0.0.0.0:<port>
-// The clients establish a connection with the daemon and must send an initial
-// message intended to assign a 'type' to the connection
-//
-// Requests
-// establish a connection with the daemon and send the following initial message :
-//	PVDID_CONNECTION_PROMOTE_GENERAL
-//	Note : the socket handle returned must be used for 'on the general connection' messages
-//
-// retrieve the list of current pvds on the general connection :
-//	PVDID_GET_LIST\n
-// retrieve a handle on a pvd on the general connection :
-// 	PVDID_GET_HANDLE <pvdid>	(FQDN)
-//
-// establish a connection with a specific pvdid : initial message :
-// 	PVDID_CONNECTION_PROMOTE_PVDID <pvdidhandle>
-//
-// retrieve all characteristics of a given pvdid. The result will always be a JSON
-// object (for now)
-// 	PVDID_GET_ATTRIBUTES
-//
-// establish a control connection (this allows filtering 'remotes' based on their
-// credentials and reject connection with insufficient credentials). Initial message :
-//	PVDID_CONNECTION_PROMOTE_CONTROL
-//	Note : credentials will be carried by CAP_NET capabilities/SMACK/SELinux attributes
-//
-// provide extra information for a given pvdidhandle (control socket)
-//	PVDID_SET_ATTRIBUTE <attribute name> <pvdidhandle> <...>\n
-//
-// Replies
-// list of pvds :
-// 	PVDID_LIST [ <pvdid>]*	(space separated)
-// handle on a pvd
-// 	PVDID_HANDLE <pvdid> <pvdidhandle>	(<FQDN> <32 bits integer>)
-// attributes JSON formatted (on a pvdid socket) :
-// 	PVDID_ATTRIBUTES <JSON string>\n"
-//
-// Notifications
-// list of pvds :
-// 	PVDID_LIST [ <pvdid>]*	(space separated)
-// a pvdid has disappeared
-//	PVDID_DELETE <pvdid>
-// a pvdid has appeared (a PVDID_LIST message is also generated)
-// 	PVDID_NEW <pvdid>
-//
-// Note : the pvdids conveyed in the PVDID_LIST messages are FQDN
-//
 
 /* ex: set ts=8 noexpandtab wrap: */
