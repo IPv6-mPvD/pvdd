@@ -53,7 +53,7 @@ localhost address (0.0.0.0), port 10101 by default.
 Native clients (aka C clients) can make use of a companion library hiding the communication
 protocol. This library (more on it in a dedicated document) can specify a different port
 using either an application specified port value, either the content of an environment
-variable (PVDID_PORT).
+variable (**PVDID\_PORT**).
 
 For consistency, it is advised that bridges for different languages/runtimes also use the same
 environment variable in their implementation (for example, node.js, lua or python bridges should
@@ -145,8 +145,8 @@ PVDID_GET_ATTRIBUTES <pvdId>
 
 Here, \<pvdId\> is a FQDN PvD name.
 
-PVDID_GET_LIST allows retrieving the list of the currently registered PvD.
-PVDID_GET_ATTRIBUTES allows retrieving ALL attributes for a given PvD.
+**PVDID\_GET\_LIST** allows retrieving the list of the currently registered PvD.
+**PVDID\_GET\_ATTRIBUTES** allows retrieving ALL attributes for a given PvD.
 
 If \<pvdId\> is * (star), the attributes for all currently registered PvD
 will be sent back.
@@ -171,7 +171,8 @@ The first subscription allows general notifications to be received (ie, notifica
 tied to a specific PvD).
 
 The second subscription message allows notifications to be received for a PvD of interest to
-the client.
+the client. If \<pvdId\> is * (star), the client subscribes for PvD related changes for all
+current and future PvD.
 
 The notification messages are described below, in the server's section.
 
@@ -186,16 +187,17 @@ PVDID_SET_ATTRIBUTE <pvdId> <attributeName> <attributeValue>
 PVDID_END_TRANSACTION <pvdId>
 ~~~~
 
-PVDID_CREATE_PVDID allows registering a new PvD. The \<pvdIdHandle\> value is intended for
+**PVDID\_CREATE\_PVDID** allows registering a new PvD. The \<pvdIdHandle\> value is intended for
 future use and can be set to 0 for now.
-PVDID_REMOVE_PVDID unregisters a PvD. Note that clarifications still need to be done
+
+**PVDID\_REMOVE\_PVDID** unregisters a PvD. Note that clarifications still need to be done
 on the meaning of a valid (aka registered) PvD.
 
 Control clients can create/modify attributes for a given PvD. When an attribute has
 changed, the set of attributes may be notified to clients having subscribed for this
 PvD. Some control clients may want to set multiple attributes. To avoid having
 multiple notifications being sent for every modification, control clients must
-use the PVDID_BEGIN_TRANSACTION and PVDID_END_TRANSACTION messages to indicate
+use the **PVDID_BEGIN_TRANSACTION** and **PVDID_END_TRANSACTION** messages to indicate
 that the notification must only happen once all attributes have been set.
 
 Thus, a typical attribute modification sequence looks like :
@@ -208,7 +210,9 @@ PVDID_SET_ATTRIBUTE <pvdId> <attributeName2> <attributeValue2>
 PVDID_END_TRANSACTION <pvdId>
 ~~~~
 
-PVDID_SET_ATTRIBUTE messages received outside a transaction will be ignored.
+**PVDID\_SET\_ATTRIBUTE** messages received outside a transaction will be ignored (this implies that
+to set only one attribute, one must still enclose the **PVDID\_SET\_ATTRIBUTE** request with
+**PVDID\_BEGIN\_TRANSACTION** and **PVDID\_END\_TRANSACTION**).
 
 Messages that extend accross multiple lines (says #n line) must be preceded by :
 
@@ -253,13 +257,13 @@ PVDID_ATTRIBUTES <pvdId> <attributeName>
 ....	#N - 1 lines
 ~~~~
 
-PVDID_LIST and PVDID_ATTRIBUTES can be sent as responses to clients's queries, or in
+**PVDID\_LIST** and **PVDID\_ATTRIBUTES** can be sent as responses to clients's queries, or in
 unsollicitated manner.
 
-PVDID_NEW_PVDID is notified when a PvD appears. PVDID_DEL_PVDID is notified when a PvD
+**PVDID\_NEW\_PVDID** is notified when a PvD appears. **PVDID\_DEL\_PVDID** is notified when a PvD
 disappears.
 
-In addition to the PVDID_NEW_PVDID and PVDID_DEL_PVDID, a notification message PVDID_LIST
+In addition to the **PVDID\_NEW\_PVDID** and **PVDID\_DEL\_PVDID**, a notification message **PVDID\_LIST**
 with the updated list of PvD will be issued.
 
 Example : the pvd.cisco.com PvD is registered, then the pvd.free.fr PvD :
@@ -292,7 +296,7 @@ The attributes are sent back as a stringified JSON object. They can be queried o
 subscribed for this PvD).
 
 Example :
-The +PVDID_GET_ATTRIBUTES pvd.cisco.com+ query results in the following (totally unconsistent) message (for example) to be received :
+The **PVDID\_GET\_ATTRIBUTES pvd.cisco.com** query results in the following (totally unconsistent) message (for example) to be received :
 
 ~~~~
 PVDID_MULTILINE 14
@@ -314,10 +318,10 @@ PVDID_ATTRIBUTES pvd.cisco.com
 
 ## TODO
 
-* Clarify the notion of PvD still active (since we have multiple sources, kernel + control clients,
+* Clarify the notion of PvD still active (since we have multiple sources, kernel ** control clients,
 that can register a PvD in a untimely manner, do we need to hide some PvD registration done by
 remote clients until the kernel has officially notified that a PvD is alive)
 * Handle errors by sending error messages, especially to clients having done some requests (otherwise,
 these clients could wait forever, which would be annoying for synchronous calls)
 
-#### Last updated : Mon Apr 24 15:46:11 CEST 2017
+#### Last updated : Tue Apr 25 11:33:11 CEST 2017
