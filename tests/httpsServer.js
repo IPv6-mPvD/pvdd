@@ -1,26 +1,30 @@
 #!/usr/bin/env node
 
-const https = require('http');
-const fs = require('fs');
+// This script starts a server that can be used in simulation mode
+// to debug the pvd.json retrieval and monitoring feature
 
-const options = {
-	key: fs.readFileSync('/var/lib/docker-unit-test/integration-cli/fixtures/https/client-key.pem'),
-	cert: fs.readFileSync('/var/lib/docker-unit-test/integration-cli/fixtures/https/client-cert.pem')
-};
+const http = require('http');
 
 var JSONresponse = {
-	"id" : 11,
+	"id" : 0,
 	"multi" : false,
 	"expire" : "today",
 	"expireDate" : "2017-04-25T16:46:00Z"
 };
 
-https.createServer(function(req, res) {
-  // Update the expireDate to always be 2 minutes ahead of now
-  // at every request
-  var now = new Date(Date.now() + 120 * 1000);
-  JSONresponse.expireDate = now.toISOString();
-  res.writeHead(200);
-  res.end(JSON.stringify(JSONresponse, null, 12) + "\n");
+http.createServer(function(req, res) {
+	JSONresponse.name = req.url.slice(1);
+	res.writeHead(200);
+	res.end(JSON.stringify(JSONresponse, null, 12) + "\n");
 }).listen(8000);
 
+// Update the expiration date and the id every 2 minutes
+var id = 0;
+function UpdateJson() {
+	var now = new Date(Date.now() + 120 * 1000);
+	JSONresponse.expireDate = now.toISOString();
+	JSONresponse.id = id++;
+	setTimeout(UpdateJson, 120 * 1000);
+}
+
+UpdateJson();
