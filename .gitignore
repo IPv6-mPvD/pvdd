@@ -1,5 +1,6 @@
 .*.sw?
 *.o
+libpvdid-test
 pvdid-daemon
 *.so
 *.a
