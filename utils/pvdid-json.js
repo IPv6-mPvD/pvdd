@@ -28,6 +28,13 @@ function dlog(s) {
 	}
 }
 
+function ComplainConnection(Port, err) {
+	console.log(
+		"Can not connect to pvdid-daemon on port " +
+		Port +
+		" (" + err.message + ")");
+}
+
 // CancelTimers : cancels all pending timers attached to a pvd
 function CancelTimers(pvdId) {
 	if (allPvd[pvdId].scheduleJob != null) {
@@ -90,7 +97,7 @@ function createControlConnection(Port) {
 			console.log("Control connection established with pvdid-daemon");
 		});
 		controlSock.on("error", function(err) {
-			console.log("Can not connect to pvdid-daemon (" + err.message + ")");
+			ComplainConnection(Port, err);
 			controlSock = null;
 		});
 	};
@@ -235,7 +242,7 @@ function createRegularConnection(Port) {
 			console.log("Regular connection established with pvdid-daemon");
 		});
 		regularSock.on("error", function(err) {
-			console.log("Can not connect to pvdid-daemon (" + err.message + ")");
+			ComplainConnection(Port, err);
 			regularSock = null;
 		});
 		regularSock.on("data", function(d) {
@@ -362,6 +369,8 @@ if (Help) {
 	process.exit(0);
 }
 
-createControlConnection(10101);
-createRegularConnection(10101);
+var Port = parseInt(process.env["PVDID_PORT"]) || 10101;
+
+createControlConnection(Port);
+createRegularConnection(Port);
 
