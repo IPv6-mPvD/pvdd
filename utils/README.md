@@ -9,9 +9,9 @@ It handles connections with the pvdid daemon, monitors PvD list notifications
 and the *hFlag* for PvDs, and performs https retrieval (_https://<pvdid>/pvd.json_)
 if needed.
 
-It also performs periodic JSON retrieval based on the *expireDate* field of the
-retrieved JSON object (or, by default, on the *expire* header value of the https
-response).
+It also performs periodic JSON retrieval based on the *expires* field of the
+retrieved JSON object (or, by default, on the *expires* header value of the https
+response, if any).
 
 If an attempt to retrieve the file has failed, a retry is performed 1 minute later.
 
@@ -46,9 +46,9 @@ For this to work, a local http server must be started locally of course
 ## Dependencies
 The following node modules shall be installed :
 
-* Net (should be installed by default)
+* net (should be installed by default)
 * http (should be installed by default)
 * https (should be installed by default)
-* node-schedule (should be installed : npm install node-schedule)
+* node-schedule (shall be installed : npm install node-schedule)
 
 
