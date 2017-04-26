@@ -141,6 +141,7 @@ The following messages permit a client querying part of the daemon's database :
 ~~~~
 PVDID_GET_LIST
 PVDID_GET_ATTRIBUTES <pvdId>
+PVDID_GET_ATTRIBUTE <pvdId> <attributeName>
 ~~~~
 
 Here, \<pvdId\> is a FQDN PvD name.
@@ -246,19 +247,29 @@ PVDID_DEL_PVDID <pvdI>
 * PvD specific messages :
 
 ~~~~
-PVDID_ATTRIBUTES <pvdId> <attributeName> <attribueValue>
+PVDID_ATTRIBUTES <pvdId> <attribueValue>
+PVDID_ATTRIBUTE <pvdId> <attributeName> <attribueValue>
 ~~~~
 
 or :
 
 ~~~~
 PVDID_MULTILINE #n
-PVDID_ATTRIBUTES <pvdId> <attributeName>
-....	#N - 1 lines
+PVDID_ATTRIBUTES <pvdId>
+....	#n - 1 lines
+
+PVDID_MULTILINE #n
+PVDID_ATTRIBUTE <pvdId> <attributeName>
+....	#n - 1 lines
 ~~~~
 
 **PVDID\_LIST** and **PVDID\_ATTRIBUTES** can be sent as responses to clients's queries, or in
 unsollicitated manner.
+
+**PVDID\_ATTRIBUTES** is the JSON object carrying all attributes for the given PvD.
+
+**PVDID\_ATTRIBUTE** is a response to a **PVDID_GET_ATTRIBUTE** query. For now, it is never
+sent in an unsollicitated manner.
 
 **PVDID\_NEW\_PVDID** is notified when a PvD appears. **PVDID\_DEL\_PVDID** is notified when a PvD
 disappears.
