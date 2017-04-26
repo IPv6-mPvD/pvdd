@@ -13,12 +13,17 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
-#define	DIM(t)	(sizeof(t) / sizeof(t[0]))
+#include "pvdid-defs.h"
+
+#undef	true
+#undef	false
+#define	true	(1 == 1)
+#define	false	(1 == 0)
+
+#define	DIM(t)		(sizeof(t) / sizeof(t[0]))
 #define	EQSTR(a,b)	(strcmp((a), (b)) == 0)
 
-#define	DEFAULT_PVDID_PORT	10101
-
-#define	MAX_PVDID	1024
+#define	MAX_PVDID	1024	// TODO : have it dynamic instead
 
 typedef	struct
 {
@@ -122,37 +127,7 @@ static	int	reopen_connection(int fd)
 	return(s);
 }
 
-int	pvdid_connect_general(int fd)
-{
-	int s;
-
-	if ((s = reopen_connection(fd)) != -1) {
-		if (SendExact(s, "PVDID_CONNECTION_PROMOTE_GENERAL\n") == -1) {
-			close(s);
-			return(-1);
-		}
-	}
-	return(s);
-}
-
-int	pvdid_connect_pvdid(int fd, int pvdIdHandle)
-{
-	int s;
-
-	if ((s = reopen_connection(fd)) != -1) {
-		char msg[256];
-
-		sprintf(msg, "PVDID_CONNECTION_PROMOTE_PVDID %d\n", pvdIdHandle);
-
-		if (SendExact(s, msg) == -1) {
-			close(s);
-			return(-1);
-		}
-	}
-	return(s);
-}
-
-int	pvdid_connect_control(int fd)
+int	pvdid_promote_control(int fd)
 {
 	int s;
 
@@ -174,6 +149,8 @@ int	pvdid_get_pvdid_list(int fd)
 	return(SendExact(fd, "PVDID_GET_LIST\n"));
 }
 
+// pvdid_parse_pvdid_list : fill in the output array with PvD names
+// They need to be freed using free() by the caller
 int	pvdid_parse_pvdid_list(char *msg, t_pvdid_list *pvdIdList)
 {
 	char	*pts = NULL;
@@ -198,7 +175,7 @@ int	pvdid_get_pvdid_list_sync(int fd, t_pvdid_list *pvdIdList)
 	int s;
 	int rc = -1;
 
-	if ((s = pvdid_connect_general(fd)) != -1) {
+	if ((s = reopen_connection(fd)) != -1) {
 		if (pvdid_get_pvdid_list(s) == 0) {
 			char msg[2048];
 
@@ -213,37 +190,83 @@ int	pvdid_get_pvdid_list_sync(int fd, t_pvdid_list *pvdIdList)
 	return(rc);
 }
 
-int	pvdid_get_pvdid_handle(int fd, char *pvdId)
+int	pvdid_get_attributes(int fd, char *pvdId)
 {
-	char msg[2048];
+	char	s[2048];
 
-	sprintf(msg, "PVDID_GET_HANDLE %s\n", pvdId);
+	snprintf(s, sizeof(s) - 1, "PVDID_GET_ATTRIBUTES %s\n", pvdId);
+	s[sizeof(s) - 1] = '\0';
 
-	return(SendExact(fd, msg));
+	return(SendExact(fd, s));
 }
 
-int	pvdid_get_pvdid_handle_sync(int fd, char *pvdId)
+// pvdid_get_attributes_sync : the attributes output parameter contain the
+// JSON string of all attributes. It needs to be freed using free() by the
+// caller
+int	pvdid_get_attributes_sync(int fd, char *pvdId, char **attributes)
 {
 	int	s;
+	int	rc = -1;
 
-	if ((s = pvdid_connect_general(fd)) != -1) {
-		if (pvdid_get_pvdid_handle(fd, pvdId) == 0) {
-			char msg[2048];
-			char pvdId2[2048];
-			int pvdIdHandle;
-
-			if (WaitFor(s, "PVDID_HANDLE %[^\n]\n", msg) == 1) {
-				if (sscanf(msg, "%[^ ] %d", pvdId2, &pvdIdHandle) == 2) {
-					if (EQSTR(pvdId2, pvdId)) {
-						close(s);
-						return(pvdIdHandle);
-					}
-				}
-			}
+	if ((s = reopen_connection(fd)) != -1) {
+		if (pvdid_get_attributes(s, pvdId) == 0) {
+			;
 		}
-		close(s);
 	}
-	return(-1);
+	return(rc);
+}
+
+int	pvdid_get_attribute(int fd, char *pvdId, char *attrName)
+{
+	char	s[2048];
+
+	snprintf(s, sizeof(s) - 1, "PVDID_GET_ATTRIBUTE %s %s\n", pvdId, attrName);
+	s[sizeof(s) - 1] = '\0';
+
+	return(SendExact(fd, s));
+}
+
+int	pvdid_get_attribute_sync(int fd, char *pvdId, char *attrName, char **attrValue)
+{
+	int	s;
+	int	rc = -1;
+
+	if ((s = reopen_connection(fd)) != -1) {
+		if (pvdid_get_attribute(s, pvdId, attrName) == 0) {
+			;
+		}
+	}
+	return(rc);
+}
+
+int	pvdid_subscribe_notifications(int fd)
+{
+	return(SendExact(fd, "PVDID_SUBSCRIBE_NOTIFICATIONS\n"));
+}
+
+int	pvdid_unsubscribe_notifications(int fd)
+{
+	return(SendExact(fd, "PVDID_UNSUBSCRIBE_NOTIFICATIONS\n"));
+}
+
+int	pvdid_subscribe_pvdid_notifications(int fd, char *pvdId)
+{
+	char	s[2048];
+
+	snprintf(s, sizeof(s) - 1, "PVDID_SUBSCRIBE %s\n", pvdId);
+	s[sizeof(s) - 1] = '\0';
+
+	return(SendExact(fd, s));
+}
+
+int	pvdid_unsubscribe_pvdid_notifications(int fd, char *pvdId)
+{
+	char	s[2048];
+
+	snprintf(s, sizeof(s) - 1, "PVDID_UNSUBSCRIBE %s\n", pvdId);
+	s[sizeof(s) - 1] = '\0';
+
+	return(SendExact(fd, s));
 }
 
 /* ex: set ts=8 noexpandtab wrap: */
