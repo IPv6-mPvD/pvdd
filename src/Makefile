@@ -7,7 +7,7 @@ OFLIB=		$(SFLIB:.c=.o)
 
 CFLAGS+=	-Wall -O0 -g -I../include
 
-all :	pvdid-daemon libpvdid.so libpvdid.a
+all :	pvdid-daemon libpvdid.so libpvdid.a libpvdid-test
 
 pvdid-daemon :	$(OFDAEMON)
 	$(CC) -g -o $@ $(OFDAEMON)
@@ -20,5 +20,8 @@ libpvdid.so :	$(OFLIB)
 libpvdid.a :	$(OFLIB)
 	ar rcv $@ $(OFLIB)
 
+libpvdid-test : libpvdid-test.o libpvdid.a pvdid-utils.o
+	$(CC) -o libpvdid-test libpvdid-test.o pvdid-utils.o libpvdid.a
+
 clean :
-	/bin/rm -f pvdid-daemon libpvdid.so libpvdid.a *.o
+	/bin/rm -f pvdid-daemon libpvdid-test libpvdid.so libpvdid.a *.o
