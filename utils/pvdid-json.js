@@ -13,9 +13,11 @@
 
 var Net = require("net");
 var schedule = require("node-schedule");
-const http = require("http");
+var http = require("http");
+var https = require("https");
 
 var Verbose = false;
+var DebugEnvironment = false;
 var DefaultPvd = [];
 
 var allPvd = {};
@@ -26,17 +28,40 @@ function dlog(s) {
 	}
 }
 
-function NewPvD(pvdId) {
-	if (allPvd[pvdId] != null) {
-		// Already defined
-		return;
+// CancelTimers : cancels all pending timers attached to a pvd
+function CancelTimers(pvdId) {
+	if (allPvd[pvdId].scheduleJob != null) {
+		allPvd[pvdId].scheduleJob.cancel();
+		allPvd[pvdId].scheduleJob = null;
 	}
 
-	allPvd[pvdId] = {
-		scheduleJob : null,
-		attributes : {},
-		monitored : false
-	};
+	if (allPvd[pvdId].retryTimeout != null) {
+		clearTimeout(allPvd[pvdId].retryTimeout);
+		allPvd[pvdId].retryTimeout = null;
+	}
+}
+
+// NewPvD : create a new pvd. If already existing, does nothing
+function NewPvD(pvdId) {
+	if (allPvd[pvdId] == null) {
+		allPvd[pvdId] = {
+			scheduleJob : null,
+			retryTimeout : null,
+			attributes : {},
+			monitored : false
+		};
+	}
+}
+
+// DelPvD : delete a pvd. This, for now, cancels any pending timer and
+// set its entry to null
+function DelPvD(pvdId) {
+	if (allPvd[pvdId] != null) {
+		allPvd[pvdId].attributes = {};
+		allPvd[pvdId].monitored = false;
+		CancelTimers(pvdId);
+		allPvd[pvdId] = null;
+	}
 }
 
 function GetJson(s) {
@@ -93,10 +118,7 @@ function MonitorPvD(sock, pvdId) {
 			// just let it go, but if a timer is programmed,
 			// abort the timer)
 			allPvd[pvdId].monitored = false;
-			if (allPvd[pvdId].scheduleJob != null) {
-				allPvd[pvdId].scheduleJob.cancel();
-				allPvd[pvdId].scheduleJob = null;
-			}
+			CancelTimers(pvdId);
 		}
 	}
 }
@@ -180,14 +202,7 @@ function HandleOneLine(sock, msg) {
 		// We must stop monitoring this PvD and unregister it
 		var pvdId = r[1];
 
-		if (allPvd[pvdId] == null) {
-			return;
-		}
-		allPvd[pvdId].monitored = false;
-		if (allPvd[pvdId].scheduleJob != null) {
-			allPvd[pvdId].scheduleJob.cancel();
-			allPvd[pvdId].scheduleJob = null;
-		}
+		DelPvD(pvdId);
 		return;
 	}
 
@@ -247,36 +262,44 @@ function SetAttribute(pvdId, attrName, attrValue) {
 }
 
 // DateStr : ISO8601 format. It should be recognized by Date.parse()
+// We should add a random delay to avoid flooding the https server
+// with GET requests at the same time
 function ScheduleAt(DateStr, f, args) {
 	dlog("ScheduleAt at " + DateStr + " programmed");
 	var j = new schedule.scheduleJob(new Date(DateStr), function() { f(args); });
 }
 
 function RetrievePvdExtraInfo(pvdId) {
-	var Url = "http://" + pvdId + ":8000" + "/pvd.json";
+	var Url, protocol;
 
-	dlog("Retrieving url + " + Url);
-
-	if (allPvd[pvdId].scheduleJob != null) {
-		allPvd[pvdId].scheduleJob.cancel();
-		allPvd[pvdId].scheduleJob = null;
+	if (allPvd[pvdId] == null) {
+		return;
 	}
 
-	http.get(
+	if (DebugEnvironment) {
+		Url = "http://localhost:8000/" + pvdId;
+		protocol = http;
+	}
+	else {
+		Url = "https://" + pvdId + "/pvd.json";
+		protocol = https;
+	}
+
+	dlog("Retrieving url " + Url);
+
+	CancelTimers(pvdId);
+
+	protocol.get(
 		Url,
 		function(res) {
-			dlog('statusCode:', res.statusCode);
-			dlog('headers:', res.headers);
 			res.on('data', function(d) {
 				dlog("Data received : " + d);
-				dlog("type : " + typeof(d));
 				// Check if we have been aborted in between
-				if (! allPvd[pvdId].monitored) {
+				if (allPvd[pvdId] == null || ! allPvd[pvdId].monitored) {
 					return;
 				}
 				if ((J = GetJson(d.toString())) != null) {
 					SetAttribute(pvdId, "extraInfo", d.toString());
-					dlog("PvdId : " + pvdId + " JSON = " + J);
 					dlog("PvdId : " + pvdId + " expireDate = " + J.expireDate);
 					if (J.expireDate != null) {
 						allPvd[pvdId].scheduleJob =
@@ -297,50 +320,47 @@ function RetrievePvdExtraInfo(pvdId) {
 		}
 	).on('error', function(err) {
 		console.log("Can not connect to " + Url + " (" + err.message + ")");
+		// We must retry. Schedule a retry in 60 seconds
+		allPvd[pvdId].retryTimeout = setTimeout(RetrievePvdExtraInfo, 60 * 1000, pvdId);
 	});
 }
 
 // Options parsing
-var Options = {
-	help : false,
-	verbose : false,
-	pvd : []
-};
-
 var InPvdList = false;
+var Help = false;
 
 process.argv.forEach(function(arg) {
 	if (arg == "-h" || arg == "--help") {
-		Options.help = true;
-		return;
-	}
+		Help = true;
+	} else
 	if (arg == "-v" || arg == "--verbose") {
-		Options.verbose = true;
-		return;
-	}
+		Verbose = true;
+	} else
+	if (arg == "-d" || arg == "--debug") {
+		DebugEnvironment = true;
+	} else
 	if (arg == "--pvd") {
 		InPvdList = true;
-		return;
-	}
+	} else
 	if (InPvdList) {
-		Options.pvd.push(arg);
-		return;
+		DefaultPvd.push(arg);
 	}
 });
 
-if (Options.help) {
+if (Help) {
 	console.log("fetch-extra-pvd-info [-h|--help] <option>*");
 	console.log("with option :");
 	console.log("\t-v|--verbose : outputs extra logs during operation");
+	console.log("\t-d|--debug : run in a simulation environment (local http server)");
 	console.log("\t--pvd <pvdId>* : list of space separated pvdId FQDN");
 	console.log("\nIn addition to the PvD specified on the command line, the script");
 	console.log("monitors notifications from the pvdid-daemon to discover new PvD");
+	console.log("\nWhen running in a simulation environment (aka debug mode), requests to");
+	console.log("retrieve the JSON description (pvd.json) are done via the");
+	console.log("http://localhost:8000/<pvdId> URL instead of https://<pvdId>/pvd.json");
+	console.log("For this to work, a local http server must be started locally of course");
 	process.exit(0);
 }
-
-Verbose = Options.verbose;
-
-DefaultPvd = Options.pvd;
 
 createControlConnection(10101);
 createRegularConnection(10101);
