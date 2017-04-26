@@ -355,13 +355,15 @@ process.argv.forEach(function(arg) {
 });
 
 if (Help) {
-	console.log("fetch-extra-pvd-info [-h|--help] <option>*");
+	console.log("pvdid-monitor [-h|--help] <option>*");
 	console.log("with option :");
 	console.log("\t-v|--verbose : outputs extra logs during operation");
 	console.log("\t-d|--debug : run in a simulation environment (local http server)");
 	console.log("\t--pvd <pvdId>* : list of space separated pvdId FQDN");
 	console.log("\nIn addition to the PvD specified on the command line, the script");
-	console.log("monitors notifications from the pvdid-daemon to discover new PvD");
+	console.log("monitors notifications from the pvdid-daemon to discover new PvD.");
+	console.log("\nThe list can be empty (and, in fact, should be left empty in a non");
+	console.log("debug environment).");
 	console.log("\nWhen running in a simulation environment (aka debug mode), requests to");
 	console.log("retrieve the JSON description (pvd.json) are done via the");
 	console.log("http://localhost:8000/<pvdId> URL instead of https://<pvdId>/pvd.json");
