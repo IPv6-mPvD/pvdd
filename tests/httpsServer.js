@@ -9,7 +9,7 @@ var JSONresponse = {
 	"id" : 0,
 	"multi" : false,
 	"expire" : "today",
-	"expireDate" : "2017-04-25T16:46:00Z"
+	"expires" : "2017-04-25T16:46:00Z"
 };
 
 http.createServer(function(req, res) {
@@ -22,7 +22,7 @@ http.createServer(function(req, res) {
 var id = 0;
 function UpdateJson() {
 	var now = new Date(Date.now() + 120 * 1000);
-	JSONresponse.expireDate = now.toISOString();
+	JSONresponse.expires = now.toISOString();
 	JSONresponse.id = id++;
 	setTimeout(UpdateJson, 120 * 1000);
 }
