@@ -1,4 +1,8 @@
 /*
+ * INSERT PROPER HEADER HERE
+ */
+
+/*
  *
  * Async functions
  * Sync functions. This family will use a per-call connection with the server
@@ -8,12 +12,16 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <fcntl.h>
 #include <errno.h>
 #include <netdb.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 
 #include "pvdid-defs.h"
+#include "pvdid-utils.h"
+
+#include "libpvdid.h"
 
 #undef	true
 #undef	false
@@ -23,32 +31,55 @@
 #define	DIM(t)		(sizeof(t) / sizeof(t[0]))
 #define	EQSTR(a,b)	(strcmp((a), (b)) == 0)
 
-#define	MAX_PVDID	1024	// TODO : have it dynamic instead
-
-typedef	struct
+// ReadMsg : reads an incoming message on a binary socket. The first
+// bytes of the message carry the total length to read
+static	int	ReadMsg(int fd, char **String)
 {
-	int	nPvdId;
-	char	*pvdIdList[MAX_PVDID];
-}	t_pvdid_list;
+	int		len;
+	char		msg[1024];
+	t_StringBuffer	SB;
+	int		n;
 
-// WaitFor : read a buffer (in the case only one line is expected) and attempt
-// to match it against the given pattern
-static	int	WaitFor(int fd, char *pattern, void *s)
-{
-	char	msg[4096];
-	int	n;
+	fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) & ~O_NONBLOCK);
 
-	if ((n = recv(fd, msg, sizeof(msg) - 1, MSG_DONTWAIT)) <= 0) {
-		// Remote disconnected (n == 0) or read error
+	SBInit(&SB);
+
+	if (recv(fd, &len, sizeof(len), MSG_WAITALL) != sizeof(len)) {
 		return(-1);
 	}
-	msg[n] = '\0';
-	return(sscanf(msg, pattern, s));
+	SBAddString(&SB, "");
+
+	while (len > 0) {
+		if ((n = read(fd, msg, sizeof(msg) - 1)) <= 0) {
+			// Remote disconnected (n == 0) or read error
+			SBUninit(&SB);
+			return(-1);
+		}
+		msg[n] = '\0';
+		SBAddString(&SB, "%s", msg);
+		len -= n;
+	}
+
+	*String = SB.String;
+
+	// printf("ReadMsg : msg = %s\n", *String);
+
+	return(0);
 }
 
 static	int	SendExact(int fd, char *s)
 {
 	return(write(fd, s, strlen(s)) == strlen(s) ? 0 : -1);
+}
+
+// StripSpaces : remove heading spaces from a string and returns
+// the address of the first non space (this includes \n) character
+// of the string
+static	char	*StripSpaces(char *s)
+{
+	while (*s != '\0' && *s <= ' ') s++;
+
+	return(s);
 }
 
 static	int	GetInt(char *s, int *PtN)
@@ -67,6 +98,8 @@ static	int	GetInt(char *s, int *PtN)
 	return(-1);
 }
 
+// pvdid_connect : returns a general connection (socket) with the pvdid
+// daemon
 int	pvdid_connect(int Port)
 {
 	int s;
@@ -127,7 +160,7 @@ static	int	reopen_connection(int fd)
 	return(s);
 }
 
-int	pvdid_promote_control(int fd)
+int	pvdid_get_control_socket(int fd)
 {
 	int s;
 
@@ -136,8 +169,21 @@ int	pvdid_promote_control(int fd)
 			close(s);
 			return(-1);
 		}
+	}
 
-		// Credential validation will be performed by the server
+	return(s);
+
+}
+
+int	pvdid_get_binary_socket(int fd)
+{
+	int s;
+
+	if ((s = reopen_connection(fd)) != -1) {
+		if (SendExact(s, "PVDID_CONNECTION_PROMOTE_BINARY\n") == -1) {
+			close(s);
+			return(-1);
+		}
 	}
 
 	return(s);
@@ -172,18 +218,19 @@ int	pvdid_parse_pvdid_list(char *msg, t_pvdid_list *pvdIdList)
 
 int	pvdid_get_pvdid_list_sync(int fd, t_pvdid_list *pvdIdList)
 {
-	int s;
-	int rc = -1;
+	int	s;
+	int	rc = -1;
+	char	*msg;
+	char	pvdString[2048];
 
-	if ((s = reopen_connection(fd)) != -1) {
-		if (pvdid_get_pvdid_list(s) == 0) {
-			char msg[2048];
-
-			if (WaitFor(s, "PVDID_LIST %[^\n]\n", msg) == 1) {
-				// msg contains a list of space separated FQDN pvdIds
-				pvdid_parse_pvdid_list(msg, pvdIdList);
+	if ((s = pvdid_get_binary_socket(fd)) != -1) {
+		if (pvdid_get_pvdid_list(s) == 0 && ReadMsg(s, &msg) == 0) {
+			if (sscanf(msg, "PVDID_LIST %[^\n]\n", pvdString) == 1) {
+				// pvdString contains a list of space separated FQDN pvdIds
+				pvdid_parse_pvdid_list(pvdString, pvdIdList);
 				rc = 0;
 			}
+			free(msg);
 		}
 		close(s);
 	}
@@ -206,14 +253,24 @@ int	pvdid_get_attributes(int fd, char *pvdId)
 int	pvdid_get_attributes_sync(int fd, char *pvdId, char **attributes)
 {
 	int	s;
-	int	rc = -1;
+	char	*msg;
+	char	Pattern[2048];
 
-	if ((s = reopen_connection(fd)) != -1) {
-		if (pvdid_get_attributes(s, pvdId) == 0) {
-			;
+	*attributes = NULL;
+
+	if ((s = pvdid_get_binary_socket(fd)) != -1) {
+		if (pvdid_get_attributes(s, pvdId) == 0 &&
+		    ReadMsg(s, &msg) == 0) {
+			sprintf(Pattern, "PVDID_ATTRIBUTES %s", pvdId);
+
+			if (strncmp(msg, Pattern, strlen(Pattern)) == 0) {
+				*attributes = strdup(StripSpaces(&msg[strlen(Pattern)]));
+			}
+			free(msg);
 		}
+		close(s);
 	}
-	return(rc);
+	return(*attributes == NULL ? -1 : 0);
 }
 
 int	pvdid_get_attribute(int fd, char *pvdId, char *attrName)
@@ -229,14 +286,26 @@ int	pvdid_get_attribute(int fd, char *pvdId, char *attrName)
 int	pvdid_get_attribute_sync(int fd, char *pvdId, char *attrName, char **attrValue)
 {
 	int	s;
-	int	rc = -1;
+	char	*msg;
+	char	Pattern[2048];
 
-	if ((s = reopen_connection(fd)) != -1) {
-		if (pvdid_get_attribute(s, pvdId, attrName) == 0) {
-			;
+	*attrValue = NULL;
+
+	if ((s = pvdid_get_binary_socket(fd)) != -1) {
+		if (pvdid_get_attribute(s, pvdId, attrName) == 0 &&
+		    ReadMsg(s, &msg) == 0) {
+			sprintf(Pattern, "PVDID_ATTRIBUTE %s %s", pvdId, attrName);
+
+			if (strncmp(msg, Pattern, strlen(Pattern)) == 0) {
+				*attrValue = strdup(StripSpaces(&msg[strlen(Pattern)]));
+			}
+
+			free(msg);
 		}
+		close(s);
 	}
-	return(rc);
+
+	return(*attrValue == NULL ? -1 : 0);
 }
 
 int	pvdid_subscribe_notifications(int fd)
@@ -267,6 +336,152 @@ int	pvdid_unsubscribe_pvdid_notifications(int fd, char *pvdId)
 	s[sizeof(s) - 1] = '\0';
 
 	return(SendExact(fd, s));
+}
+
+// ParseStringArray : given a strings ["...", "...", ...], returns
+// the  different ... strings in the given array
+// The substrings must not contain ] or "
+static	int	ParseStringArray(char *msg, char **Array, int Size)
+{
+	int	n = 0;
+	char	OneString[2048];
+	char	*pt;
+	int	InString = false;
+
+	if (msg[0] == '[') {
+		msg++;
+		while (*msg != '\0' && *msg != ']' && n < Size) {
+			if (*msg == '"') {
+				if (InString) {
+					InString = false;
+					*pt = '\0';
+					Array[n++] = strdup(OneString);
+				}
+				else {
+					InString = true;
+					pt = OneString;
+				}
+			} else
+			if (InString) {
+				*pt++ = *msg;
+			}
+
+			msg++;
+		}
+	}
+	return(n);
+}
+
+// pvdid_parse_rdnss : msq contains a JSON array of strings
+// The string can either be alone on the line, either preceded
+// by PVDID_ATTRIBUTE <pvdId> RDNSS. These strings are in6 addresses
+int	pvdid_parse_rdnss(char *msg, t_pvdid_rdnss *PtRdnss)
+{
+	char	Rdnss[2048];
+
+	if (sscanf(msg, "PVDID_ATTRIBUTE %*[^ ] RDNSS %[^\n]", Rdnss) == 1) {
+		msg = Rdnss;
+	}
+
+	PtRdnss->nRdnss = ParseStringArray(msg, PtRdnss->Rdnss, DIM(PtRdnss->Rdnss));
+
+	return(0);
+}
+
+void	pvdid_release_rdnss(t_pvdid_rdnss *PtRdnss)
+{
+	int	i;
+
+	for (i = 0; i < PtRdnss->nRdnss; i++) {
+		free(PtRdnss->Rdnss[i]);
+	}
+	PtRdnss->nRdnss = 0;
+}
+
+// pvdid_parse_dnssl : msq contains a JSON array of strings
+// The string can either be alone on the line, either preceded
+// by PVDID_ATTRIBUTE <pvdId> DNSSL
+int	pvdid_parse_dnssl(char *msg, t_pvdid_dnssl *PtDnssl)
+{
+	char	Dnssl[2048];
+
+	if (sscanf(msg, "PVDID_ATTRIBUTE %*[^ ] DNSSL %[^\n]", Dnssl) == 1) {
+		msg = Dnssl;
+	}
+
+	PtDnssl->nDnssl = ParseStringArray(msg, PtDnssl->Dnssl, DIM(PtDnssl->Dnssl));
+
+	return(0);
+}
+
+void	pvdid_release_dnssl(t_pvdid_dnssl *PtDnssl)
+{
+	int	i;
+
+	for (i = 0; i < PtDnssl->nDnssl; i++) {
+		free(PtDnssl->Dnssl[i]);
+	}
+	PtDnssl->nDnssl = 0;
+}
+
+int	pvdid_get_rdnss(int fd, char *pvdId)
+{
+	char	s[2048];
+
+	sprintf(s, "PVDID_GET_ATTRIBUTE %s RDNSS\n", pvdId);
+
+	return(SendExact(fd, s));
+}
+
+int	pvdid_get_rdnss_sync(int fd, char *pvdId, t_pvdid_rdnss *PtRdnss)
+{
+	int	s;
+	int	rc = -1;
+	char	*msg;
+	char	Pattern[2048];
+
+	if ((s = pvdid_get_binary_socket(fd)) != -1) {
+		if (pvdid_get_rdnss(s, pvdId) == 0 && ReadMsg(s, &msg) == 0) {
+			sprintf(Pattern, "PVDID_ATTRIBUTE %s RDNSS\n", pvdId);
+
+			if (strncmp(msg, Pattern, strlen(Pattern)) == 0) {
+				rc = pvdid_parse_rdnss(&msg[strlen(Pattern)], PtRdnss);
+			}
+			free(msg);
+		}
+		close(s);
+	}
+	return(rc);
+}
+
+int	pvdid_get_dnssl(int fd, char *pvdId)
+{
+	char	s[2048];
+
+	sprintf(s, "PVDID_GET_ATTRIBUTE %s DNSSL\n", pvdId);
+
+	return(SendExact(fd, s));
+}
+
+int	pvdid_get_dnssl_sync(int fd, char *pvdId, t_pvdid_dnssl *PtDnssl)
+{
+	int	s;
+	int	rc = -1;
+	char	*msg;
+	char	Pattern[2048];
+
+	if ((s = pvdid_get_binary_socket(fd)) != -1) {
+		if (pvdid_get_dnssl(s, pvdId) == 0 && ReadMsg(s, &msg) == 0) {
+			sprintf(Pattern, "PVDID_ATTRIBUTE %s DNSSL\n", pvdId);
+
+			if (strncmp(msg, Pattern, strlen(Pattern)) == 0) {
+				rc = pvdid_parse_dnssl(&msg[strlen(Pattern)], PtDnssl);
+			}
+			free(msg);
+		}
+		close(s);
+	}
+	return(rc);
 }
 
 /* ex: set ts=8 noexpandtab wrap: */
