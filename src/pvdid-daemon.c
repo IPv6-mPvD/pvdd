@@ -35,6 +35,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <signal.h>
 #include <string.h>
 #include <stdarg.h>
 #include <errno.h>
@@ -55,7 +56,8 @@
 
 // Clients sockets types. General sockets can be promoted to control sockets
 #define	SOCKET_GENERAL		1
-#define	SOCKET_CONTROL		2
+#define	SOCKET_BINARY		2
+#define	SOCKET_CONTROL		3
 
 // Max numbers of items. TODO : replace these hard coded limits by dynamic
 // implementation (but, doing this, make sure we avoid DOS)
@@ -314,15 +316,19 @@ static	int	AddSubscription(int ix, char *pvdId)
 
 // WriteString : send a string over a socket (any file descriptor in fact).
 // Return true if the whole string could be written, false otherwise
-static	int	WriteString(int s, char *str)
+static	int	WriteString(int s, char *str, int binary)
 {
 	int	l = strlen(str);
+	if (binary) {
+		return(write(s, &l, sizeof(l)) == sizeof(l) &&
+		       write(s, str, l) == l);
+	}
 	return(write(s, str, l) == l);
 }
 
 // SendPvdIdList : send the current list of pvdId to a client that
 // has requested it
-static	int	SendPvdIdList(int s)
+static	int	SendPvdIdList(int s, int binary)
 {
 	char	msg[2048];
 	t_PvdId	*PtPvdId;
@@ -330,10 +336,11 @@ static	int	SendPvdIdList(int s)
 	// FIXME : check for overflow
 	sprintf(msg, "PVDID_LIST");
 	for (PtPvdId = lFirstPvdId; PtPvdId != NULL; PtPvdId = PtPvdId->next) {
-		sprintf(msg, "%s %s", msg, PtPvdId->pvdId);
+		strcat(msg, " ");
+		strcat(msg, PtPvdId->pvdId);
 	}
 	strcat(msg, "\n");
-	if (! WriteString(s, msg)) {
+	if (! WriteString(s, msg, binary)) {
 		return(-1);
 	}
 	return(0);
@@ -359,7 +366,7 @@ static	void	NotifyPvdIdState(char *pvdId, int Mask)
 			continue;
 		}
 		if ((pt->SubscriptionMask & Mask) != 0) {
-			if (! WriteString(pt->s, msg)) {
+			if (! WriteString(pt->s, msg, pt->type == SOCKET_BINARY)) {
 				ReleaseClient(i);
 			}
 		}
@@ -380,7 +387,8 @@ static	void	NotifyPvdIdList(void)
 	// FIXME : check for overflow
 	sprintf(msg, "PVDID_LIST");
 	for (PtPvdId = lFirstPvdId; PtPvdId != NULL; PtPvdId = PtPvdId->next) {
-		sprintf(msg, "%s %s", msg, PtPvdId->pvdId);
+		strcat(msg, " ");
+		strcat(msg, PtPvdId->pvdId);
 	}
 	strcat(msg, "\n");
 
@@ -389,7 +397,7 @@ static	void	NotifyPvdIdList(void)
 			continue;
 		}
 		if ((pt->SubscriptionMask & SUBSCRIPTION_LIST) != 0) {
-			if (! WriteString(pt->s, msg)) {
+			if (! WriteString(pt->s, msg, pt->type == SOCKET_BINARY)) {
 				ReleaseClient(i);
 			}
 		}
@@ -580,39 +588,54 @@ static	char	*PvdIdAttributes2Json(t_PvdId *PtPvdId)
 // PVDID_MULTILINE <number of lines>
 // ...
 // ...
-static	int	SendMultiLines(int s, char *prefix, ...)
+// In case of a binary promoted connection, there is no such PVDID_MULTILINE header
+static	int	SendMultiLines(int s, int binary, char *Prefix, ...)
 {
-	int	n = 1;	// 1 because we have at least the 'prefix' string on 1st line
+	int	n = 1;	// 1 because we have at least the 'Prefix' string on 1st line
 	char	Line[256];
 	va_list ap;
 	char	*pt;
 
-	va_start(ap, prefix);
+	if (binary) {
+		int	len = strlen(Prefix);
 
-	while ((pt = va_arg(ap, char *)) != NULL) {
-		while (*pt != '\0') {
-			if (*pt == '\n') {
-				n++;
-			}
-			pt++;
+		va_start(ap, Prefix);
+		while ((pt = va_arg(ap, char *)) != NULL) {
+			len += strlen(pt);
+		}
+		va_end(ap);
+		if (write(s, &len, sizeof(len)) != sizeof(len)) {
+			return(-1);
 		}
 	}
-	va_end(ap);
+	else {
+		va_start(ap, Prefix);
 
-	sprintf(Line, "PVDID_MULTILINE %d\n", n);
+		while ((pt = va_arg(ap, char *)) != NULL) {
+			while (*pt != '\0') {
+				if (*pt == '\n') {
+					n++;
+				}
+				pt++;
+			}
+		}
+		va_end(ap);
 
-	if (! WriteString(s, Line)) {
+		sprintf(Line, "PVDID_MULTILINE %d\n", n);
+
+		if (! WriteString(s, Line, false)) {
+			return(-1);
+		}
+	}
+
+	if (! WriteString(s, Prefix, false)) {
 		return(-1);
 	}
 
-	if (! WriteString(s, prefix)) {
-		return(-1);
-	}
-
-	va_start(ap, prefix);
+	va_start(ap, Prefix);
 
 	while ((pt = va_arg(ap, char *)) != NULL) {
-		if (! WriteString(s, pt)) {
+		if (! WriteString(s, pt, false)) {
 			return(-1);
 		}
 	}
@@ -671,7 +694,12 @@ static	int	NotifyPvdIdAttributes(t_PvdId *PtPvdId)
 
 		while (pt != NULL) {
 			if (EQSTR(pt->pvdId, pvdId) || EQSTR(pt->pvdId, "*")) {
-				if (SendMultiLines(s, Prefix, JsonString, NULL) == -1) {
+				if (SendMultiLines(
+						s,
+						lTabClients[i].type == SOCKET_BINARY,
+						Prefix,
+						JsonString,
+						NULL) == -1) {
 					ReleaseClient(i);
 				}
 				break;
@@ -713,14 +741,14 @@ void	PvdIdEndTransaction(t_PvdId *PtPvdId)
 }
 
 // SendOneAttribute : send a given attributes for a given pvdIdHandle to a given client
-static	int	SendOneAttribute(int s, char *pvdId, char *attrName)
+static	int	SendOneAttribute(int s, int binary, char *pvdId, char *attrName)
 {
 	int		i;
 	char		Prefix[1024];
 	t_PvdId		*PtPvdId;
 	t_PvdAttribute	*Attributes;
 
-	DLOG("send attribute %s for pvdid %s on socket %d\n", pvdId, attrName, s);
+	DLOG("send attribute %s for pvdid %s on socket %d\n", attrName, pvdId, s);
 
 	// Nominal case
 	if ((PtPvdId = GetPvdId(pvdId)) == NULL) {
@@ -734,14 +762,14 @@ static	int	SendOneAttribute(int s, char *pvdId, char *attrName)
 		    Attributes[i].Key != NULL &&
 		    EQSTR(Attributes[i].Key, attrName)) {
 			sprintf(Prefix, "PVDID_ATTRIBUTE %s %s\n", pvdId, attrName);
-			return(SendMultiLines(s, Prefix, Attributes[i].Value, "\n", NULL));
+			return(SendMultiLines(s, binary, Prefix, Attributes[i].Value, "\n", NULL));
 		}
 	}
 	return(0);
 }
 
 // SendAllAttributes : send the attributes for a given pvdIdHandle to a given client
-static	int	SendAllAttributes(int s, char *pvdId)
+static	int	SendAllAttributes(int s, int binary, char *pvdId)
 {
 	int	rc;
 	char	Prefix[1024];
@@ -756,7 +784,7 @@ static	int	SendAllAttributes(int s, char *pvdId)
 		t_PvdId	*PtPvdId;
 
 		for (PtPvdId = lFirstPvdId; PtPvdId != NULL; PtPvdId = PtPvdId->next) {
-			if ((rc = SendAllAttributes(s, PtPvdId->pvdId)) != 0) {
+			if ((rc = SendAllAttributes(s, binary, PtPvdId->pvdId)) != 0) {
 				return(rc);
 			}
 		}
@@ -774,7 +802,7 @@ static	int	SendAllAttributes(int s, char *pvdId)
 
 	sprintf(Prefix, "PVDID_ATTRIBUTES %s\n", pvdId);
 
-	rc = SendMultiLines(s, Prefix, JsonString, NULL);
+	rc = SendMultiLines(s, binary, Prefix, JsonString, NULL);
 
 	free(JsonString);
 
@@ -849,8 +877,11 @@ static	int	DispatchMessage(char *msg, int ix)
 	int	pvdIdHandle;
 	int	s = lTabClients[ix].s;
 	int	type = lTabClients[ix].type;
+	int	binary = type == SOCKET_BINARY;
 
-	DLOG("handling message %s on socket %d, type %d\n", msg, s, type);
+	if (msg[0] != '\0') {
+		DLOG("handling message %s on socket %d, type %d\n", msg, s, type);
+	}
 
 	// Only one kind of promotion for now (more a restriction
 	// than a promotion in fact)
@@ -865,6 +896,11 @@ static	int	DispatchMessage(char *msg, int ix)
 		}
 		lTabClients[ix].type = SOCKET_CONTROL;
 
+		return(0);
+	}
+
+	if (EQSTR(msg, "PVDID_CONNECTION_PROMOTE_BINARY")) {
+		lTabClients[ix].type = SOCKET_BINARY;
 		return(0);
 	}
 
@@ -997,7 +1033,7 @@ static	int	DispatchMessage(char *msg, int ix)
 	}
 
 	if (EQSTR(msg, "PVDID_GET_LIST")) {
-		if (SendPvdIdList(s) == -1) {
+		if (SendPvdIdList(s, binary) == -1) {
 			goto BadExit;
 		}
 		return(0);
@@ -1009,14 +1045,14 @@ static	int	DispatchMessage(char *msg, int ix)
 		// associated pvdIdHandle. The attributes are sent
 		// as a JSON object, with embedded \n : multi-lines
 		// message
-		if (SendAllAttributes(s, pvdId) == -1) {
+		if (SendAllAttributes(s, binary, pvdId) == -1) {
 			goto BadExit;
 		}
 		return(0);
 	}
 
 	if (sscanf(msg, "PVDID_GET_ATTRIBUTE %[^ ] %[^\n]", pvdId, attributeName) == 2) {
-		if (SendOneAttribute(s, pvdId, attributeName) == -1) {
+		if (SendOneAttribute(s, binary, pvdId, attributeName) == -1) {
 			goto BadExit;
 		}
 		return(0);
@@ -1055,7 +1091,10 @@ static	int	HandleMessage(int ix)
 		ReleaseClient(ix);
 		return(-1);
 	}
-	DLOG("client for socket %d : message len = %d\n", s, n);
+
+	if (n != 1) {
+		DLOG("client for socket %d : message len = %d\n", s, n);
+	}
 
 	lMsg[n] = '\0';
 
@@ -1140,6 +1179,8 @@ int	main(int argc, char **argv)
 		printf("Persistent directory : %s\n",
 			PersistentDir == NULL ? "none defined" : PersistentDir);
 	}
+
+	signal(SIGPIPE, SIG_IGN);
 
 	/*
 	 * Read and parse the existing persistent files and configuration file,
