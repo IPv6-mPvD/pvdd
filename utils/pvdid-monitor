@@ -48,7 +48,7 @@ function CancelTimers(pvdId) {
 	}
 }
 
-// NewPvD : create a new pvd. If already existing, does nothing
+// NewPvD : registers a new pvd. If already existing, does nothing
 function NewPvD(pvdId) {
 	if (allPvd[pvdId] == null) {
 		allPvd[pvdId] = {
@@ -60,7 +60,7 @@ function NewPvD(pvdId) {
 	}
 }
 
-// DelPvD : delete a pvd. This, for now, cancels any pending timer and
+// DelPvD : unregisters a pvd. This, for now, cancels any pending timer and
 // set its entry to null
 function DelPvD(pvdId) {
 	if (allPvd[pvdId] != null) {
@@ -78,6 +78,8 @@ function GetJson(s) {
 	return(null);
 }
 
+// Control connection related functions. The control connection will be used to
+// send attributes updates
 function ControlSockInit(sock) {
 	sock.write("PVDID_CONNECTION_PROMOTE_CONTROL\n");
 	DefaultPvd.forEach(function(pvdId) {
@@ -87,7 +89,7 @@ function ControlSockInit(sock) {
 
 var controlSock = null;
 
-function createControlConnection(Port) {
+function controlConnection(Port) {
 	// Perform the initial connection, and automatic reconnection
 	// in case we lose connection with it
 	if (controlSock == null) {
@@ -100,25 +102,23 @@ function createControlConnection(Port) {
 			ComplainConnection(Port, err);
 			controlSock = null;
 		});
-	};
-	setTimeout(createControlConnection, 1000, Port);
+	}
+	else {
+		controlSock.write("\n");	// to trigger a connection error
+	}
+	setTimeout(controlConnection, 1000, Port);
 }
 
 // MonitorPvD : given a pvdId, check if it is needed to start/stop retrieving
-// its associated JSON extra info
+// its associated JSON extra info (that's what we call monitoring a PvD)
 function MonitorPvD(sock, pvdId) {
-	if (allPvd[pvdId] == null) {
-		// Unknown pvd
-		return;
-	}
-
-	if (allPvd[pvdId].attributes.hFlag) {
-		if (! allPvd[pvdId].monitored) {
-			allPvd[pvdId].monitored = true;
-			RetrievePvdExtraInfo(pvdId);
-		}
-	}
-	else {
+	if (allPvd[pvdId] != null) {
+		if (allPvd[pvdId].attributes.hFlag) {
+			if (! allPvd[pvdId].monitored) {
+				allPvd[pvdId].monitored = true;
+				RetrievePvdExtraInfo(pvdId);
+			}
+		} else
 		if (allPvd[pvdId].monitored) {
 			// Currently been monitored => we must abort the
 			// monitoring (ie, if a https.get is in progress,
@@ -144,9 +144,8 @@ function UpdateAttribute(sock, pvdId, attributes) {
 	}
 }
 
-
-// HandleMultiLine : a multi-line message has been fully read.
-// Parse its first line and handles it
+// HandleMultiLine : a multi-line message has been fully read
+// Parses the message and handles it
 function HandleMultiLine(sock, msg) {
 	var r;
 
@@ -159,16 +158,17 @@ function HandleMultiLine(sock, msg) {
 	return;
 }
 
+// HandleOneLine : one line message handling. The trailing
+// \n must have been removed
 var multiLines = 0;
 var fullMsg = "";
 
-// HandleOneLine : one line message handling. The trailing
-// \n must have been removed
 function HandleOneLine(sock, msg) {
 	var r;
 
 	dlog("Handling one line : " + msg + " (multiLines = " + multiLines + ")");
 
+	// Are we reading a mult-line message ?
 	if (multiLines > 0) {
 		fullMsg += msg + "\n";
 		if (--multiLines <= 0) {
@@ -187,6 +187,7 @@ function HandleOneLine(sock, msg) {
 		return;
 	}
 
+	// Single line messages
 	if ((r = msg.match(/PVDID_LIST +(.*)/i)) != null) {
 		var newListPvD = r[1].match(/[^ ]+/g);
 		newListPvD.forEach(function(pvdId) {
@@ -220,25 +221,23 @@ function HandleOneLine(sock, msg) {
 	return;
 }
 
-function HandleMsg(sock, msg) {
-	dlog("Received msg " + msg);
-	msg.toString().split("\n").forEach(function(oneLine) {
-		HandleOneLine(sock, oneLine);
-	});
-	return;
+// Regular connection related functions. The regular connection will be used to send
+// queries (PvD list and attributes) and to receive replies/notifications
+function regularSockInit(sock) {
+	sock.write("PVDID_GET_LIST\n");
+	sock.write("PVDID_SUBSCRIBE_NOTIFICATIONS\n");
+	sock.write("PVDID_SUBSCRIBE *\n");
 }
 
 var regularSock = null;
 
-function createRegularConnection(Port) {
+function regularConnection(Port) {
 	// Perform the initial connection, and automatic reconnection
 	// in case we lose connection with it
 	if (regularSock == null) {
 		regularSock = Net.connect({ host : "0.0.0.0", port : Port });
 		regularSock.on("connect", function() {
-			regularSock.write("PVDID_GET_LIST\n");
-			regularSock.write("PVDID_SUBSCRIBE_NOTIFICATIONS\n");
-			regularSock.write("PVDID_SUBSCRIBE *\n");
+			regularSockInit(regularSock);
 			console.log("Regular connection established with pvdid-daemon");
 		});
 		regularSock.on("error", function(err) {
@@ -246,10 +245,15 @@ function createRegularConnection(Port) {
 			regularSock = null;
 		});
 		regularSock.on("data", function(d) {
-			HandleMsg(regularSock, d);
+			d.toString().split("\n").forEach(function(oneLine) {
+				HandleOneLine(regularSock, oneLine);
+			});
 		});
-	};
-	setTimeout(createRegularConnection, 1000, Port);
+	}
+	else {
+		regularSock.write("\n");	// to trigger a connection error
+	}
+	setTimeout(regularConnection, 1000, Port);
 }
 
 // SetAttribute : send a set attribute query to the daemon
@@ -307,18 +311,18 @@ function RetrievePvdExtraInfo(pvdId) {
 				}
 				if ((J = GetJson(d.toString())) != null) {
 					SetAttribute(pvdId, "extraInfo", d.toString());
-					dlog("PvdId : " + pvdId + " expireDate = " + J.expireDate);
-					if (J.expireDate != null) {
+					dlog("PvdId : " + pvdId + " expires = " + J.expires);
+					if (J.expires != null) {
 						allPvd[pvdId].scheduleJob =
 							ScheduleAt(
-								J.expireDate,
+								J.expires,
 								RetrievePvdExtraInfo,
 								pvdId);
 					} else
-					if (res.headers.expire != null) {
+					if (res.headers.expires != null) {
 						allPvd[pvdId].scheduleJob =
 							ScheduleAt(
-								res.headers.expire, 
+								res.headers.expires,
 								RetrievePvdExtraInfo,
 								pvdId);
 					}
@@ -373,6 +377,6 @@ if (Help) {
 
 var Port = parseInt(process.env["PVDID_PORT"]) || 10101;
 
-createControlConnection(Port);
-createRegularConnection(Port);
+controlConnection(Port);
+regularConnection(Port);
 
