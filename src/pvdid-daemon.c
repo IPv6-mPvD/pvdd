@@ -424,7 +424,7 @@ static	t_PvdId	*RegisterPvdId(int pvdIdHandle, char *pvdId)
 	PtPvdId->dirty = false;
 	memset(PtPvdId->Attributes, 0, sizeof(PtPvdId->Attributes));
 	PvdIdSetAttr(PtPvdId, "sequenceNumber", "0");
-	PvdIdSetAttr(PtPvdId, "hFlag", "0");
+	PvdIdSetAttr(PtPvdId, "hFlag", "0");	// by default
 	PvdIdSetAttr(PtPvdId, "lFlag", "0");
 
 	// Link it at the head of the list
@@ -712,6 +712,34 @@ void	PvdIdEndTransaction(t_PvdId *PtPvdId)
 	}
 }
 
+// SendOneAttribute : send a given attributes for a given pvdIdHandle to a given client
+static	int	SendOneAttribute(int s, char *pvdId, char *attrName)
+{
+	int		i;
+	char		Prefix[1024];
+	t_PvdId		*PtPvdId;
+	t_PvdAttribute	*Attributes;
+
+	DLOG("send attribute %s for pvdid %s on socket %d\n", pvdId, attrName, s);
+
+	// Nominal case
+	if ((PtPvdId = GetPvdId(pvdId)) == NULL) {
+		return(0);
+	}
+
+	Attributes = PtPvdId->Attributes;
+
+	for (i = 0; i < MAXATTRIBUTES; i++) {
+		if (Attributes[i].Value != NULL &&
+		    Attributes[i].Key != NULL &&
+		    EQSTR(Attributes[i].Key, attrName)) {
+			sprintf(Prefix, "PVDID_ATTRIBUTE %s %s\n", pvdId, attrName);
+			return(SendMultiLines(s, Prefix, Attributes[i].Value, "\n", NULL));
+		}
+	}
+	return(0);
+}
+
 // SendAllAttributes : send the attributes for a given pvdIdHandle to a given client
 static	int	SendAllAttributes(int s, char *pvdId)
 {
@@ -815,10 +843,12 @@ static	int	HandleMultiLinesMessage(int ix)
 //
 static	int	DispatchMessage(char *msg, int ix)
 {
-	char pvdId[PVDIDNAMESIZ];	// be careful with overflow
-	int pvdIdHandle;
-	int s = lTabClients[ix].s;
-	int type = lTabClients[ix].type;
+	char	attributeName[1024];
+	char	attributeValue[4096];
+	char	pvdId[PVDIDNAMESIZ];	// be careful with overflow
+	int	pvdIdHandle;
+	int	s = lTabClients[ix].s;
+	int	type = lTabClients[ix].type;
 
 	DLOG("handling message %s on socket %d, type %d\n", msg, s, type);
 
@@ -842,8 +872,6 @@ static	int	DispatchMessage(char *msg, int ix)
 	// some pvdid attributes (or trigger maintenance tasks)
 	if (type == SOCKET_CONTROL) {
 		int	nLines;
-		char	attributeName[1024];
-		char	attributeValue[4096];
 
 		// If we are reading a multi-lines string, just add it to the
 		// current buffer. If this is the last line, process it
@@ -975,12 +1003,20 @@ static	int	DispatchMessage(char *msg, int ix)
 		return(0);
 	}
 
+	// Once again, PVDID_GET_ATTRIBUTES must come BEFORE PVDID_GET_ATTRIBUTE
 	if (sscanf(msg, "PVDID_GET_ATTRIBUTES %[^\n]", pvdId) == 1) {
 		// Send to the client all known attributes of the
 		// associated pvdIdHandle. The attributes are sent
 		// as a JSON object, with embedded \n : multi-lines
 		// message
 		if (SendAllAttributes(s, pvdId) == -1) {
+			goto BadExit;
+		}
+		return(0);
+	}
+
+	if (sscanf(msg, "PVDID_GET_ATTRIBUTE %[^ ] %[^\n]", pvdId, attributeName) == 2) {
+		if (SendOneAttribute(s, pvdId, attributeName) == -1) {
 			goto BadExit;
 		}
 		return(0);
