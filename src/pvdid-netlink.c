@@ -307,7 +307,6 @@ static void process_ra(unsigned char *msg, int len, struct sockaddr_in6 *addr)
 			break;
 		}
 		case ND_OPT_PVDID: {
-			int label_len;
 			struct nd_opt_pvdid_info_local *pvdidinfo = (struct nd_opt_pvdid_info_local *) opt_str;
 			if (len < sizeof(*pvdidinfo))
 				return;
@@ -317,16 +316,26 @@ static void process_ra(unsigned char *msg, int len, struct sockaddr_in6 *addr)
 			pvdIdH = (pvdidinfo->nd_opt_pvdidi_reserved1 & 0x08) >> 3;
 			pvdIdL = (pvdidinfo->nd_opt_pvdidi_reserved1 & 0x03) >> 2;
 
-			if ((label_len = pvdidinfo->nd_opt_pvdidi_suffix[0]) == 0) {
-				// Ignore empty suffix
-				continue;
-			}
-			if (label_len > sizeof(pvdId) - 2) {
-				_DLOG(LOG_ERR, "oversized pvdid in PVDID option from %s\n", addr_str);
+			// We will modify in place the buffer to put '.' where
+			// needed
+			unsigned char *pt = pvdidinfo->nd_opt_pvdidi_suffix;
+			int labelLen = *pt++;
+
+			if (labelLen == 0) {
+				// Ignore empty name
 				break;
 			}
-			memcpy(pvdId, &pvdidinfo->nd_opt_pvdidi_suffix[1], label_len);
-			pvdId[label_len] = '\0';
+			while (labelLen != 0) {
+				int n;
+				if ((n = pt[labelLen]) != 0) {
+					pt[labelLen] = '.';
+					pt += labelLen + 1;
+				}
+				labelLen = n;
+			}
+			// Hopefully ends with a '\0'
+
+			strcpy(pvdId, (char *) &pvdidinfo->nd_opt_pvdidi_suffix[1]);
 
 			break;
 		}
