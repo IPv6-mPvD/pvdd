@@ -1,3 +1,5 @@
 
-all clean install :
-	$(MAKE) -C src $@
+all $(MAKECMDGOALS) :
+	@-$(MAKE) -C include $@
+	@-$(MAKE) -C src $@
+	@-$(MAKE) -C utils $@
