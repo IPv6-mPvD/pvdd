@@ -345,7 +345,7 @@ static	int	ParseStringArray(char *msg, char **Array, int Size)
 {
 	int	n = 0;
 	char	OneString[2048];
-	char	*pt;
+	char	*pt = OneString;
 	int	InString = false;
 
 	if (msg[0] == '[') {
