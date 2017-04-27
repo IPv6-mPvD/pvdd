@@ -412,6 +412,7 @@ static	void	NotifyPvdIdList(void)
 static	t_PvdId	*RegisterPvdId(int pvdIdHandle, char *pvdId)
 {
 	t_PvdId	*PtPvdId;
+	char	*tmpStr;
 
 	for (PtPvdId = lFirstPvdId; PtPvdId != NULL; PtPvdId = PtPvdId->next) {
 		if (EQSTR(PtPvdId->pvdId, pvdId)) {
@@ -427,10 +428,21 @@ static	t_PvdId	*RegisterPvdId(int pvdIdHandle, char *pvdId)
 		DLOG("allocating pvdid : memory overflow\n");
 		return(NULL);
 	}
+	if ((tmpStr = alloca(strlen(pvdId) * 3 + 2)) == NULL) {
+		free(PtPvdId);
+		DLOG("allocating pvdid : memory overflow\n");
+		return(NULL);
+	}
+
 	PtPvdId->pvdIdHandle = pvdIdHandle == -1 ? 0 : pvdIdHandle;
 	PtPvdId->pvdId = strdup(pvdId);	// TODO : check overflow
 	PtPvdId->dirty = false;
 	memset(PtPvdId->Attributes, 0, sizeof(PtPvdId->Attributes));
+
+	sprintf(tmpStr, "\"%s\"", JsonString(pvdId));
+	PvdIdSetAttr(PtPvdId, "pvdId", tmpStr);
+	sprintf(tmpStr, "%d", PtPvdId->pvdIdHandle);
+	PvdIdSetAttr(PtPvdId, "pvdIdHandle", tmpStr);
 	PvdIdSetAttr(PtPvdId, "sequenceNumber", "0");
 	PvdIdSetAttr(PtPvdId, "hFlag", "0");	// by default
 	PvdIdSetAttr(PtPvdId, "lFlag", "0");
@@ -556,22 +568,18 @@ static	char	*PvdIdAttributes2Json(t_PvdId *PtPvdId)
 {
 	int		i;
 	t_StringBuffer	SB;
-	int		pvdIdHandle = PtPvdId->pvdIdHandle;
-	char		*pvdId = PtPvdId->pvdId;
 	t_PvdAttribute	*Attributes = PtPvdId->Attributes;
 
 	SBInit(&SB);
 
-	// We always have 2 default fields
-	SBAddString(&SB, "{\n");
-	SBAddString(&SB, "\t\"pvdId\" : \"%s\",\n", JsonString(pvdId));
-	SBAddString(&SB, "\t\"pvdIdHandle\" : %d", pvdIdHandle);
+	SBAddString(&SB, "{");
 
 	for (i = 0; i < MAXATTRIBUTES; i++) {
 		if (Attributes[i].Key != NULL) {
 			SBAddString(
 				&SB,
-				",\n\t\"%s\" : %s",
+				"%s\n\t\"%s\" : %s",
+				i == 0 ? "" : ",",
 				JsonString(Attributes[i].Key),
 				Attributes[i].Value);
 		}
@@ -579,51 +587,39 @@ static	char	*PvdIdAttributes2Json(t_PvdId *PtPvdId)
 
 	SBAddString(&SB, "\n}\n");
 
-	DLOG("PvdIdAttributes2Json(%d) : %s\n", pvdIdHandle, SB.String);
+	DLOG("PvdIdAttributes2Json(%s) : %s\n", PtPvdId->pvdId, SB.String);
 
 	return(SB.String);
 }
 
 // SendMultiLines : send a multi-line string to a client. Multi-line messages are :
-// PVDID_MULTILINE <number of lines>
+// PVDID_BEGIN_MULTILINE
 // ...
 // ...
-// In case of a binary promoted connection, there is no such PVDID_MULTILINE header
+// PVDID_END_MULTILINE
+// In case of a binary promoted connection, there is no such MULTILINE header
+// because binary connections messages are made of a length + data payload
 static	int	SendMultiLines(int s, int binary, char *Prefix, ...)
 {
-	int	n = 1;	// 1 because we have at least the 'Prefix' string on 1st line
-	char	Line[256];
 	va_list ap;
 	char	*pt;
 
 	if (binary) {
 		int	len = strlen(Prefix);
 
+		// Computes the length of the payload
 		va_start(ap, Prefix);
 		while ((pt = va_arg(ap, char *)) != NULL) {
 			len += strlen(pt);
 		}
 		va_end(ap);
+		// Writes the length first
 		if (write(s, &len, sizeof(len)) != sizeof(len)) {
 			return(-1);
 		}
 	}
 	else {
-		va_start(ap, Prefix);
-
-		while ((pt = va_arg(ap, char *)) != NULL) {
-			while (*pt != '\0') {
-				if (*pt == '\n') {
-					n++;
-				}
-				pt++;
-			}
-		}
-		va_end(ap);
-
-		sprintf(Line, "PVDID_MULTILINE %d\n", n);
-
-		if (! WriteString(s, Line, false)) {
+		if (! WriteString(s, "PVDID_BEGIN_MULTILINE\n", false)) {
 			return(-1);
 		}
 	}
@@ -633,13 +629,18 @@ static	int	SendMultiLines(int s, int binary, char *Prefix, ...)
 	}
 
 	va_start(ap, Prefix);
-
 	while ((pt = va_arg(ap, char *)) != NULL) {
 		if (! WriteString(s, pt, false)) {
 			return(-1);
 		}
 	}
 	va_end(ap);
+
+	if (! binary) {
+		if (! WriteString(s, "PVDID_END_MULTILINE\n", false)) {
+			return(-1);
+		}
+	}
 
 	return(0);
 }
@@ -750,22 +751,25 @@ static	int	SendOneAttribute(int s, int binary, char *pvdId, char *attrName)
 
 	DLOG("send attribute %s for pvdid %s on socket %d\n", attrName, pvdId, s);
 
-	// Nominal case
 	if ((PtPvdId = GetPvdId(pvdId)) == NULL) {
+		DLOG("%s : unknown PvD\n", pvdId);
 		return(0);
 	}
 
 	Attributes = PtPvdId->Attributes;
 
+	sprintf(Prefix, "PVDID_ATTRIBUTE %s %s\n", pvdId, attrName);
+
 	for (i = 0; i < MAXATTRIBUTES; i++) {
 		if (Attributes[i].Value != NULL &&
 		    Attributes[i].Key != NULL &&
 		    EQSTR(Attributes[i].Key, attrName)) {
-			sprintf(Prefix, "PVDID_ATTRIBUTE %s %s\n", pvdId, attrName);
 			return(SendMultiLines(s, binary, Prefix, Attributes[i].Value, "\n", NULL));
 		}
 	}
-	return(0);
+	// Not found : send something to the client to avoid having it
+	// waiting forever (in case of binary clients mostly)
+	return(SendMultiLines(s, binary, Prefix, "null", "\n", NULL));
 }
 
 // SendAllAttributes : send the attributes for a given pvdIdHandle to a given client
@@ -818,6 +822,7 @@ static	int	HandleMultiLinesMessage(int ix)
 	char	pvdId[PVDIDNAMESIZ];
 	char	*pt;
 	int	rc;
+	int	l;
 	t_StringBuffer	*SB = &lTabClients[ix].SB;
 
 	// Isolate the 1st line
@@ -826,6 +831,12 @@ static	int	HandleMultiLinesMessage(int ix)
 	}
 	else {
 		pt = "";
+	}
+
+	// Remove the last \n if any
+	l = strlen(pt);
+	while (l > 0 && pt[l - 1] == '\n') {
+		pt[--l] = '\0';
 	}
 
 	if (sscanf(
@@ -907,22 +918,28 @@ static	int	DispatchMessage(char *msg, int ix)
 	// Control sockets : typically used by authorized clients to update
 	// some pvdid attributes (or trigger maintenance tasks)
 	if (type == SOCKET_CONTROL) {
-		int	nLines;
 
-		// If we are reading a multi-lines string, just add it to the
-		// current buffer. If this is the last line, process it
-		if (lTabClients[ix].multiLines > 0) {
-			if (SBAddString(&lTabClients[ix].SB, 
-					"%s%s",
-					msg,
-					lTabClients[ix].multiLines == 1 ? "" : "\n") == -1) {
-				// Don't fail : this is not the caller's fault
-				return(0);
-			}
-			if (--lTabClients[ix].multiLines <= 0) {
-				// Message fully received
-				return(HandleMultiLinesMessage(ix));
-			}
+		// Beginning of a multi-lines section ? We want to
+		// test here (ie, before END_MULTILINE & Co) to have
+		// the chance to reset the buffers in case we have missed
+		// a previous multi-lines section END message
+		if (EQSTR(msg, "PVDID_BEGIN_MULTILINE")) {
+			lTabClients[ix].multiLines = true;
+			SBUninit(&lTabClients[ix].SB);
+			SBInit(&lTabClients[ix].SB);
+			return(0);
+		}
+
+		// Are we at the end of a multi-lines section ?
+		if (EQSTR(msg, "PVDID_END_MULTILINE")) {
+			lTabClients[ix].multiLines = false;
+			return(HandleMultiLinesMessage(ix));
+		}
+
+		// Are we inside a multi-lines section ? If yes just add it to
+		// the current buffer
+		if (lTabClients[ix].multiLines) {
+			SBAddString(&lTabClients[ix].SB, "%s\n", msg);
 			return(0);
 		}
 
@@ -966,14 +983,6 @@ static	int	DispatchMessage(char *msg, int ix)
 			return(0);
 			
 		}
-
-		if (sscanf(msg, "PVDID_MULTILINE %d", &nLines) == 1) {
-			lTabClients[ix].multiLines = nLines;
-			SBUninit(&lTabClients[ix].SB);
-			SBInit(&lTabClients[ix].SB);
-			return(0);
-		}
-
 		// PVDID_SET_ATTRIBUTE message are special : either the
 		// content fits on the line, either it is part of a
 		// multi-lines string. We only handle here the one-line
