@@ -74,7 +74,9 @@ function DelPvD(pvdId) {
 function GetJson(s) {
 	try {
 		return(JSON.parse(s));
-	} catch (e) {}
+	} catch (e) {
+		console.log("GetJson(" + s + ") : invalid JSON (" + e + ")")
+	};
 	return(null);
 }
 
@@ -104,7 +106,7 @@ function controlConnection(Port) {
 		});
 	}
 	else {
-		controlSock.write("\n");	// to trigger a connection error
+		controlSock.write("\n");	// ping : may trigger an error
 	}
 	setTimeout(controlConnection, 1000, Port);
 }
@@ -131,8 +133,10 @@ function MonitorPvD(sock, pvdId) {
 }
 
 // UpdateAttributes : update the internal attributes structure for a given
-// pvdId and restart the PvD monitoring
+// pvdId and restart the PvD monitoring. This function is called when
+// the attributes for the PvD have been received
 function UpdateAttribute(sock, pvdId, attributes) {
+	dlog("UpdateAttribute : pvdId = " + pvdId + ", attributes = " + attributes);
 	if (allPvd[pvdId] != null) {
 		var J;
 		if ((J = GetJson(attributes)) != null) {
@@ -160,7 +164,7 @@ function HandleMultiLine(sock, msg) {
 
 // HandleOneLine : one line message handling. The trailing
 // \n must have been removed
-var multiLines = 0;
+var multiLines = false;
 var fullMsg = "";
 
 function HandleOneLine(sock, msg) {
@@ -168,22 +172,25 @@ function HandleOneLine(sock, msg) {
 
 	dlog("Handling one line : " + msg + " (multiLines = " + multiLines + ")");
 
-	// Are we reading a mult-line message ?
-	if (multiLines > 0) {
-		fullMsg += msg + "\n";
-		if (--multiLines <= 0) {
-			HandleMultiLine(sock, fullMsg);
-			fullMsg = "";
-			multiLines = 0;
-		}
+	// We check the beginning of a multi-lines section
+	// before anything else, to reset the buffer in case
+	// a previous multi-lines was improperly closed
+	if (msg == "PVDID_BEGIN_MULTILINE") {
+		multiLines = true;
+		fullMsg = "";
 		return;
 	}
 
-	if ((r = msg.match(/PVDID_MULTILINE +(\d+)/i)) != null) {
-		try {
-			multiLines = parseInt(r[1]);
-		}
-		catch (e) {}
+	// End of a multi-lines sections ?
+	if (msg == "PVDID_END_MULTILINE") {
+		HandleMultiLine(sock, fullMsg);
+		multiLines  = false;
+		return;
+	}
+
+	// Are we in a mult-line section ?
+	if (multiLines) {
+		fullMsg += msg + "\n";
 		return;
 	}
 
@@ -261,13 +268,14 @@ function regularConnection(Port) {
 // string representation)
 function SetAttribute(pvdId, attrName, attrValue) {
 	if (controlSock != null) {
-		var nLines = attrValue.split("\n").length;
+		dlog("SetAttribute : attrName = " + attrName + ", attrValue = " + attrValue);
 		controlSock.write(
 			"PVDID_BEGIN_TRANSACTION " + pvdId + "\n" +
-			"PVDID_MULTILINE " + nLines + "\n" +
+			"PVDID_BEGIN_MULTILINE\n" +
 			"PVDID_SET_ATTRIBUTE " + pvdId + " " +
 						attrName + "\n" +
 						attrValue + "\n" +
+			"PVDID_END_MULTILINE\n" +
 			"PVDID_END_TRANSACTION " + pvdId + "\n");
 	}
 }
@@ -309,23 +317,28 @@ function RetrievePvdExtraInfo(pvdId) {
 				if (allPvd[pvdId] == null || ! allPvd[pvdId].monitored) {
 					return;
 				}
-				if ((J = GetJson(d.toString())) != null) {
-					SetAttribute(pvdId, "extraInfo", d.toString());
-					dlog("PvdId : " + pvdId + " expires = " + J.expires);
-					if (J.expires != null) {
-						allPvd[pvdId].scheduleJob =
-							ScheduleAt(
-								J.expires,
-								RetrievePvdExtraInfo,
-								pvdId);
-					} else
-					if (res.headers.expires != null) {
-						allPvd[pvdId].scheduleJob =
-							ScheduleAt(
-								res.headers.expires,
-								RetrievePvdExtraInfo,
-								pvdId);
-					}
+				if ((J = GetJson(d.toString())) == null) {
+					return;
+				}
+
+				// Instead of passing d.toString() below, we pass
+				// the stringified conversion of the JSON object
+				// to send something cleaner to the daemon
+				SetAttribute(pvdId, "extraInfo", JSON.stringify(J, null, 12));
+				dlog("PvdId : " + pvdId + " expires = " + J.expires);
+				if (J.expires != null) {
+					allPvd[pvdId].scheduleJob =
+						ScheduleAt(
+							J.expires,
+							RetrievePvdExtraInfo,
+							pvdId);
+				} else
+				if (res.headers.expires != null) {
+					allPvd[pvdId].scheduleJob =
+						ScheduleAt(
+							res.headers.expires,
+							RetrievePvdExtraInfo,
+							pvdId);
 				}
 			});
 		}
