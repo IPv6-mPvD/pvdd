@@ -1,27 +1,52 @@
 
+
 SFDAEMON=	pvdid-daemon.c pvdid-netlink.c pvdid-utils.c
-OFDAEMON=	$(SFDAEMON:.c=.o)
+OFDAEMON=	$(SFDAEMON:%.c=obj/%.o)
 
-SFLIB=		libpvdid.c
-OFLIB=		$(SFLIB:.c=.o)
+SFLIB=		libpvdid.c libpvdid-utils.c
+OFLIB=		$(SFLIB:%.c=obj/%.o)
 
-CFLAGS+=	-Wall -O0 -g -I../include
+CFLAGS+=	-Wall -g -O2 -I../include
 
-all :	pvdid-daemon libpvdid.so libpvdid.a libpvdid-test
+all :	obj obj/pvdid-daemon obj/libpvdid.so obj/libpvdid.a obj/libpvdid-test
 
-pvdid-daemon :	$(OFDAEMON)
-	$(CC) -g -o $@ $(OFDAEMON)
+AR=	ar
+MKDIR=	mkdir
+RM=	/bin/rm
+CP=	/bin/cp
 
-$(OFLIB) :	CFLAGS+=-fpic
+obj :
+	$(MKDIR) -p obj
 
-libpvdid.so :	$(OFLIB)
-	$(CC) -shared -o $@ $(OFLIB)
+obj/%.o:%.c
+	$(CC) -c $(CFLAGS) -o $@ $^
 
-libpvdid.a :	$(OFLIB)
-	ar rcv $@ $(OFLIB)
+obj/pvdid-netlink.o:	CFLAGS+=-fno-strict-aliasing
 
-libpvdid-test : libpvdid-test.o libpvdid.a pvdid-utils.o
-	$(CC) -o libpvdid-test libpvdid-test.o pvdid-utils.o libpvdid.a
+obj/pvdid-daemon : $(OFDAEMON)
+	$(CC) -g -o $@ $^
+
+$(OFLIB) :	CFLAGS+=-fpic -O2
+
+obj/libpvdid.so : $(OFLIB)
+	$(CC) -shared -o $@ $^
+
+obj/libpvdid.a : $(OFLIB)
+	$(AR) rcv $@ $^
+
+obj/libpvdid-test : obj/libpvdid-test.o obj/libpvdid.a
+	$(CC) -g -o $@ $^
 
 clean :
-	/bin/rm -f pvdid-daemon libpvdid-test libpvdid.so libpvdid.a *.o
+	$(RM) -rf obj pvdid-daemon libpvdid-test libpvdid.so libpvdid.a *.o
+
+install : all
+	$(MKDIR) -p $(DESTDIR)/include $(DESTDIR)/sbin $(DESTDIR)/libexec $(DESTDIR)/lib &&\
+	$(CP) obj/pvdid-daemon $(DESTDIR)/sbin &&\
+	$(CP) obj/libpvdid.so obj/libpvdid.a $(DESTDIR)/lib
+
+cleaninstall :
+	$(RM) -f \
+		$(DESTDIR)/sbin/pvdid-daemon \
+		$(DESTDIR)/lib/libpvdid.so \
+		$(DESTDIR)/lib/libpvdid.a
