@@ -29,6 +29,8 @@ Clients using the companion library can set the PVDID_PORT environment
 variable to specify another port than the default one
 ~~~~
 
+Note that the __--dir__ option is of no use for now.
+
 ## Kernel interface
 pvdId-daemon (the program) opens a netlink socket with the kernel and configures
 it to be notified of ICMPV6 options related to IPV6 RA.
@@ -45,6 +47,7 @@ For now, the fields of interest are :
 When a RA carries a new PVDID, an entry for this PVDID is created in the database.
 
 Failure to create the netlink socket (because of insufficient rights) does not prevent the daemon to start.
+This capacity to start without a netlink socket is obviously mostly useful only in debug mode.
 
 ## Clients
 The daemon is acting as a server accepting clients connections on a socket bound on the
@@ -112,6 +115,9 @@ issues, especially regarding content extending over multiple lines, but this has
 make it easier to generate and parse messages from scripting languages (shells, javascript, phython,
 lua, etc.).
 
+In fact, messages are not entirely text based : some binary bits can be found in some of them,
+as we will see when talking about connection promotion below.
+
 We will describe the messages sent by both clients and the daemon (aka, the server).
 
 All messages must end with a trailing \n. We will omit it in the descriptions below.
@@ -134,6 +140,20 @@ PVDID_CONNECTION_PROMOTE_CONTROL
 Once the connection has been promoted, only control messages can be sent over the connection.
 Other messages will be ignored. For now, no message except error messages will be sent by
 the server to the control clients.
+
+There is another kind of promotion : a general connection can be promoted to a binary connection.
+
+A binary connection has each message (whether one line or multi-lines) being preceded by its
+length, in binary format (a integer). This has been introduced to make the life for the synchronous
+API of the C companion library easier.
+
+The message to send to the daemon is as follows :
+
+~~~~
+PVDID_CONNECTION_PROMOTE_BINARY
+~~~~
+
+Currently, the C library is making use of this kind of promotion.
 
 #### Query messages
 The following messages permit a client querying part of the daemon's database :
@@ -215,23 +235,28 @@ PVDID_END_TRANSACTION <pvdId>
 to set only one attribute, one must still enclose the **PVDID\_SET\_ATTRIBUTE** request with
 **PVDID\_BEGIN\_TRANSACTION** and **PVDID\_END\_TRANSACTION**).
 
-Messages that extend accross multiple lines (says #n line) must be preceded by :
+Messages that extend accross multiple lines must be enclosed with :
 
 ~~~~
-PVDID_MULTILINE #n
+PVDID_BEGIN_MULTILINE
+...
+PVDID_END_MULTILINE
 ~~~~
 
 For example, to set a JSON string attribute, a control client could use :
 
 ~~~~
-PVDID_MULTILINE 6
+PVDID_BEGIN_MULTILINE
 PVDID_SET_ATTRIBUTE <pvdId> cost
 {
 	"currency" : "euro",
 	"cost" : 0.01,
 	"unitInMB" : 0.5
 }
+PVDID_END_MULTILINE
 ~~~~
+
+Note that multi-lines sections can not be imbricated.
 
 ### Server
 The server generates the following messages :
@@ -254,13 +279,15 @@ PVDID_ATTRIBUTE <pvdId> <attributeName> <attribueValue>
 or :
 
 ~~~~
-PVDID_MULTILINE #n
+PVDID_BEGIN_MULTILINE
 PVDID_ATTRIBUTES <pvdId>
-....	#n - 1 lines
+....
+PVDID_END_MULTILINE
 
-PVDID_MULTILINE #n
+PVDID_BEGIN_MULTILINE
 PVDID_ATTRIBUTE <pvdId> <attributeName>
-....	#n - 1 lines
+....
+PVDID_END_MULTILINE
 ~~~~
 
 **PVDID\_LIST** and **PVDID\_ATTRIBUTES** can be sent as responses to clients's queries, or in
@@ -310,7 +337,7 @@ Example :
 The **PVDID\_GET\_ATTRIBUTES pvd.cisco.com** query results in the following (totally unconsistent) message (for example) to be received :
 
 ~~~~
-PVDID_MULTILINE 14
+PVDID_BEGIN_MULTILINE
 PVDID_ATTRIBUTES pvd.cisco.com
 {
         "pvdId" : "pvd.cisco.com",
@@ -325,6 +352,7 @@ PVDID_ATTRIBUTES pvd.cisco.com
                 "name" : "orange.fr"
         }
 }
+PVDID_END_MULTILINE
 ~~~~
 
 ## TODO
