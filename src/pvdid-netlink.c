@@ -119,6 +119,7 @@ struct nd_opt_pvdid_info_local {
 	uint8_t nd_opt_pvdidi_len;
 	uint8_t nd_opt_pvdidi_reserved1;
 	uint8_t nd_opt_pvdidi_reserved2;
+	uint32_t nd_opt_pvdidi_lifetime;
 	unsigned char nd_opt_pvdidi_suffix[];
 };
 
@@ -127,7 +128,7 @@ static	char	*GetIntStr(int n)
 {
 	static	char	lS[128];
 
-	sprintf(lS, "%d", n);
+	sprintf(lS, "%u", (unsigned int) n);
 
 	return(lS);
 }
@@ -159,6 +160,7 @@ static void process_ra(unsigned char *msg, int len, struct sockaddr_in6 *addr)
 	int pvdIdSeq = -1;
 	int pvdIdH = 0;
 	int pvdIdL = 0;
+	uint32_t pvdIdLifetime = 0;
 	t_PvdId *PtPvdId;
 	char *TabDNSSL[16];	// More than sufficient ?
 	int nDNSSL = 0;
@@ -312,9 +314,15 @@ static void process_ra(unsigned char *msg, int len, struct sockaddr_in6 *addr)
 				return;
 			DLOG("ND_OPT_PVDID present in RA\n");
 
+			if (pvdId[0] != '\0') {
+				DLOG("PVDID option already defined. Ignoring this one\n");
+				break;
+			}
+
 			pvdIdSeq = (pvdidinfo->nd_opt_pvdidi_reserved1 & 0xF0) >> 4;
 			pvdIdH = (pvdidinfo->nd_opt_pvdidi_reserved1 & 0x08) >> 3;
 			pvdIdL = (pvdidinfo->nd_opt_pvdidi_reserved1 & 0x03) >> 2;
+			pvdIdLifetime = pvdidinfo->nd_opt_pvdidi_lifetime;
 
 			// We will modify in place the buffer to put '.' where
 			// needed
@@ -361,6 +369,7 @@ static void process_ra(unsigned char *msg, int len, struct sockaddr_in6 *addr)
 	PvdIdSetAttr(PtPvdId, "sequenceNumber", GetIntStr(pvdIdSeq));
 	PvdIdSetAttr(PtPvdId, "hFlag", GetIntStr(pvdIdH));
 	PvdIdSetAttr(PtPvdId, "lFlag", GetIntStr(pvdIdL));
+	PvdIdSetAttr(PtPvdId, "lifetime", GetIntStr(pvdIdLifetime));
 
 	if (nDNSSL > 0) {
 		char	*pt = JsonArray(nDNSSL, TabDNSSL);
