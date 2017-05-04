@@ -113,10 +113,10 @@ function controlConnection(Port) {
 
 // MonitorPvD : given a pvdId, check if it is needed to start/stop retrieving
 // its associated JSON extra info (that's what we call monitoring a PvD)
-function MonitorPvD(sock, pvdId) {
+function MonitorPvD(sock, pvdId, forceNow) {
 	if (allPvd[pvdId] != null) {
 		if (allPvd[pvdId].attributes.hFlag) {
-			if (! allPvd[pvdId].monitored) {
+			if (forceNow || ! allPvd[pvdId].monitored) {
 				allPvd[pvdId].monitored = true;
 				RetrievePvdExtraInfo(pvdId);
 			}
@@ -140,8 +140,11 @@ function UpdateAttribute(sock, pvdId, attributes) {
 	if (allPvd[pvdId] != null) {
 		var J;
 		if ((J = GetJson(attributes)) != null) {
+			// Check the Seq field for changes
+			var forceNow =
+				J.sequenceNumber != allPvd[pvdId].attributes.sequenceNumber;
 			allPvd[pvdId].attributes = J;
-			MonitorPvD(sock, pvdId);
+			MonitorPvD(sock, pvdId, forceNow);
 			dlog("Attribute for " + pvdId + 
 				" = " + JSON.stringify(J, null, 8));
 		}
@@ -313,6 +316,8 @@ function RetrievePvdExtraInfo(pvdId) {
 		function(res) {
 			res.on('data', function(d) {
 				dlog("Data received : " + d);
+				// TODO : check the status (200, 300-400, 40x)
+
 				// Check if we have been aborted in between
 				if (allPvd[pvdId] == null || ! allPvd[pvdId].monitored) {
 					return;
@@ -326,17 +331,16 @@ function RetrievePvdExtraInfo(pvdId) {
 				// to send something cleaner to the daemon
 				SetAttribute(pvdId, "extraInfo", JSON.stringify(J, null, 12));
 				dlog("PvdId : " + pvdId + " expires = " + J.expires);
-				if (J.expires != null) {
+
+				// Schedule if needed the retrieval of the JSON based
+				// on the 'expires' field
+				// FIXME : check that the date format of the JSON
+				// and of the HTTP header are both recognized by
+				// the Date() parser of node
+				if ((nextDate = J.expires || res.headers.expires) != null) {
 					allPvd[pvdId].scheduleJob =
 						ScheduleAt(
-							J.expires,
-							RetrievePvdExtraInfo,
-							pvdId);
-				} else
-				if (res.headers.expires != null) {
-					allPvd[pvdId].scheduleJob =
-						ScheduleAt(
-							res.headers.expires,
+							nextDate,
 							RetrievePvdExtraInfo,
 							pvdId);
 				}
