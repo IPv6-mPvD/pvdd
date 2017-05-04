@@ -166,8 +166,15 @@ static void process_ra(unsigned char *msg, int len, struct sockaddr_in6 *addr)
 	int nDNSSL = 0;
 	char *TabRDNSS[8];	// No more than 3 anyway
 	int nRDNSS = 0;
+	struct {
+		char *prefix;	// strduped
+		int prefixLen;
+	}	TabPrefix[32];
+	int nPrefix = 0;
 
 	addrtostr(&addr->sin6_addr, addr_str, sizeof(addr_str));
+
+	_DLOG(LOG_INFO, "RA received from %s\n", addr_str);
 
 	pvdId[0] = '\0';
 
@@ -213,11 +220,19 @@ static void process_ra(unsigned char *msg, int len, struct sockaddr_in6 *addr)
 			break;
 		}
 		case ND_OPT_PREFIX_INFORMATION: {
+			char prefix_str[INET6_ADDRSTRLEN];
 			struct nd_opt_prefix_info *pinfo = (struct nd_opt_prefix_info *)opt_str;
 			if (len < sizeof(*pinfo))
 				return;
 
-			DLOG("ND_OPT_PREFIX_INFORMATION present in RA\n");
+			addrtostr(&pinfo->nd_opt_pi_prefix, prefix_str, sizeof(prefix_str));
+
+			if (nPrefix < DIM(TabPrefix)) {
+				TabPrefix[nPrefix].prefix = strdup(prefix_str);
+				TabPrefix[nPrefix].prefixLen = pinfo->nd_opt_pi_prefix_len;
+
+				nPrefix++;
+			}
 
 			break;
 		}
@@ -265,12 +280,13 @@ static void process_ra(unsigned char *msg, int len, struct sockaddr_in6 *addr)
 			break;
 		}
 		case ND_OPT_DNSSL_INFORMATION: {
+			int offset;
 			struct nd_opt_dnssl_info_local *dnsslinfo = (struct nd_opt_dnssl_info_local *)opt_str;
 			if (len < sizeof(*dnsslinfo))
 				return;
 			DLOG("ND_OPT_DNSSL_INFORMATION present in RA\n");
 
-			for (int offset = 0; offset < (dnsslinfo->nd_opt_dnssli_len - 1) * 8;) {
+			for (offset = 0; offset < (dnsslinfo->nd_opt_dnssli_len - 1) * 8;) {
 				char suffix[256] = {""};
 				if (&dnsslinfo->nd_opt_dnssli_suffixes[offset] - opt_str >= len)
 					return;
@@ -359,7 +375,8 @@ static void process_ra(unsigned char *msg, int len, struct sockaddr_in6 *addr)
 
 	// If we have seen a PvdId, we will update some fields of interest
 	if (pvdId[0] == '\0') {
-		return;
+		// No PvD option defined in this RA
+		goto Exit;
 	}
 
 	if ((PtPvdId = PvdIdBeginTransaction(pvdId)) == NULL) {
@@ -389,8 +406,35 @@ static void process_ra(unsigned char *msg, int len, struct sockaddr_in6 *addr)
 		}
 	}
 
+	if (nPrefix > 0) {
+		t_StringBuffer	SB;
+
+		SBInit(&SB);
+		SBAddString(&SB,  "{\n");
+		for (i = 0; i < nPrefix; i++) {
+			SBAddString(
+				&SB,
+				"\t\"%s:%d\" : { ",
+				TabPrefix[i].prefix,
+				TabPrefix[i].prefixLen);
+			SBAddString(
+				&SB,
+				"\"prefix\" : \"%s\", ",
+				TabPrefix[i].prefix);
+			SBAddString(
+				&SB,
+				"\"prefixLen\" : \"%d\" }%s\n",
+				TabPrefix[i].prefixLen,
+				i == nPrefix - 1 ? "" : ",");
+		}
+		SBAddString(&SB, "}\n");
+		PvdIdSetAttr(PtPvdId, "prefixes", SB.String);
+		SBUninit(&SB);
+	}
+
 	PvdIdEndTransaction(PtPvdId);
 
+Exit :
 	for (i = 0; i < nDNSSL; i++) {
 		if (TabDNSSL[i] != NULL) {
 			free(TabDNSSL[i]);
@@ -401,6 +445,10 @@ static void process_ra(unsigned char *msg, int len, struct sockaddr_in6 *addr)
 		if (TabRDNSS[i] != NULL) {
 			free(TabRDNSS[i]);
 		}
+	}
+
+	for (i = 0; i < nPrefix; i++) {
+		free(TabPrefix[i].prefix);
 	}
 
 	return;
@@ -478,6 +526,7 @@ static int recv_ra(
 	mhdr.msg_controllen = CMSG_SPACE(sizeof(struct in6_pktinfo)) + CMSG_SPACE(sizeof(int));
 
 	int len = recvmsg(sock, &mhdr, 0);
+	struct cmsghdr *cmsg;
 
 	if (len < 0) {
 		if (errno != EINTR) {
@@ -486,7 +535,7 @@ static int recv_ra(
 		return len;
 	}
 
-	for (struct cmsghdr *cmsg = CMSG_FIRSTHDR(&mhdr); cmsg != NULL; cmsg = CMSG_NXTHDR(&mhdr, cmsg)) {
+	for (cmsg = CMSG_FIRSTHDR(&mhdr); cmsg != NULL; cmsg = CMSG_NXTHDR(&mhdr, cmsg)) {
 		if (cmsg->cmsg_level != IPPROTO_IPV6)
 			continue;
 
