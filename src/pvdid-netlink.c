@@ -319,10 +319,10 @@ static void process_ra(unsigned char *msg, int len, struct sockaddr_in6 *addr)
 				break;
 			}
 
-			pvdIdSeq = (pvdidinfo->nd_opt_pvdidi_reserved1 & 0xF0) >> 4;
+			pvdIdSeq = ntohs((pvdidinfo->nd_opt_pvdidi_reserved1 & 0xF0) >> 4);
 			pvdIdH = (pvdidinfo->nd_opt_pvdidi_reserved1 & 0x08) >> 3;
 			pvdIdL = (pvdidinfo->nd_opt_pvdidi_reserved1 & 0x03) >> 2;
-			pvdIdLifetime = pvdidinfo->nd_opt_pvdidi_lifetime;
+			pvdIdLifetime = ntohl(pvdidinfo->nd_opt_pvdidi_lifetime);
 
 			// We will modify in place the buffer to put '.' where
 			// needed
