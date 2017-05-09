@@ -484,4 +484,53 @@ int	pvdid_get_dnssl_sync(int fd, char *pvdId, t_pvdid_dnssl *PtDnssl)
 	return(rc);
 }
 
+/*
+ * Specialized function encapsulating the SO_BINDTOPVD socket option
+ * sock_bind_to_pvd/sock_get_bound_pvd are used to bind a single pvd
+ * to a socket, and are mostly useful as an example on how to use the
+ * SO_BINDTOPVD option
+ *
+ * The bind_to_pvd is quite large, and we don't want to pass it to the
+ * kernel : this is why the expected argument to SO_BINDTOPVD is the
+ * address of a pointer to the effective structure (double reference)
+ */
+#ifndef	SO_BINDTOPVD
+#define	SO_BINDTOPVD	55
+
+#define MAXBOUNDPVD     32
+
+struct bind_to_pvd {
+	int	npvd;	/* in/out */
+	char	pvdnames[MAXBOUNDPVD][PVDIDNAMESIZ];
+};
+#endif
+
+int	sock_bind_to_pvd(int s, char *pvdname)
+{
+	struct bind_to_pvd	btp, *pbtp = &btp;
+
+	btp.npvd = 1;
+	btp.pvdnames[0][PVDIDNAMESIZ - 1] = '\0';
+	strncpy(btp.pvdnames[0], pvdname, PVDIDNAMESIZ- 1);
+
+	return(setsockopt(s, SOL_SOCKET, SO_BINDTOPVD, &pbtp, sizeof(pbtp)));
+}
+
+int	sock_get_bound_pvd(int s, char *pvdname)
+{
+	struct bind_to_pvd	btp, *pbtp = &btp;
+	socklen_t optlen = sizeof(pbtp);
+	int rc;
+
+	btp.npvd = 1;
+	if ((rc = getsockopt(s, SOL_SOCKET, SO_BINDTOPVD, &pbtp, &optlen)) == 0) {
+		if (btp.npvd == 1) {
+			strncpy(pvdname, btp.pvdnames[0], PVDIDNAMESIZ - 1);
+			pvdname[PVDIDNAMESIZ - 1] = '\0';
+		}
+		return(btp.npvd);
+	}
+	return(rc);
+}
+
 /* ex: set ts=8 noexpandtab wrap: */
