@@ -174,8 +174,6 @@ static void process_ra(unsigned char *msg, int len, struct sockaddr_in6 *addr)
 
 	addrtostr(&addr->sin6_addr, addr_str, sizeof(addr_str));
 
-	_DLOG(LOG_INFO, "RA received from %s\n", addr_str);
-
 	pvdId[0] = '\0';
 
 	// The message begins with a struct nd_router_advert structure
@@ -462,14 +460,15 @@ static void process(
 {
 	char if_namebuf[IF_NAMESIZE] = {""};
 	char *if_name = if_indextoname(pkt_info->ipi6_ifindex, if_namebuf);
+	char addr_str[INET6_ADDRSTRLEN];
+
 	if (!if_name) {
 		if_name = "unknown interface";
 	}
-	_DLOG(LOG_DEBUG, "%s received a packet\n", if_name);
-
-	char addr_str[INET6_ADDRSTRLEN];
 
 	addrtostr(&addr->sin6_addr, addr_str, sizeof(addr_str));
+
+	_DLOG(LOG_DEBUG, "%s received a packet on lla %s\n", if_name, addr_str);
 
 	if (len < sizeof(struct icmp6_hdr)) {
 		_DLOG(LOG_WARNING, "%s received icmpv6 packet with invalid length (%d) from %s\n",
