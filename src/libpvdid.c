@@ -533,4 +533,62 @@ int	sock_get_bound_pvd(int s, char *pvdname)
 	return(rc);
 }
 
+#ifndef	PVDNAMSIZ
+#define	PVDNAMSIZ	1024
+#endif
+
+#ifndef	MAXPVD
+/*
+ * MAXPVD must be a power of 2
+ */
+#define	MAXPVDSHIFT	10	/* realistic upper bound */
+#define	MAXPVD		(1 << MAXPVDSHIFT)
+
+#endif
+
+#ifndef	SO_GETPVDINFO
+
+#define	SO_GETPVDINFO		56
+
+/*
+ * For SO_GETPVDINFO
+ */
+struct net_pvd_attribute {
+	char			name[PVDNAMSIZ];
+	int			index;	/* unique number */
+
+	/*
+	 * Attributes of the pvd
+	 */
+	int			sequence_number;
+	int			h_flag;
+	int			l_flag;
+
+	unsigned long		expires;	/* lifetime field */
+};
+
+struct pvd_list {
+	int npvd;	/* in/out */
+	struct net_pvd_attribute pvds[MAXPVD];
+};
+
+#endif	/* SO_GETPVDINFO */
+
+int	pvd_get_list(struct pvd_list *pvl)
+{
+	int		s;
+	int		rc;
+	socklen_t	optlen = sizeof(struct pvd_list *);
+
+	if ((s = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+		return(-1);
+	}
+
+	rc = getsockopt(s, SOL_SOCKET, SO_GETPVDINFO, &pvl, &optlen);
+
+	close(s);
+
+	return(rc);
+}
+
 /* ex: set ts=8 noexpandtab wrap: */
