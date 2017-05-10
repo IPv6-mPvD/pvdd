@@ -15,11 +15,19 @@ MKDIR=	mkdir
 RM=	/bin/rm
 CP=	/bin/cp
 
+SRCS=	\
+	libpvdid.c		\
+	libpvdid-test.c		\
+	libpvdid-utils.c	\
+	pvdid-daemon.c		\
+	pvdid-netlink.c		\
+	pvdid-utils.c
+
 obj :
 	$(MKDIR) -p obj
 
 obj/%.o:%.c
-	$(CC) -c $(CFLAGS) -o $@ $^
+	$(CC) -c $(CFLAGS) -o $@ $<
 
 obj/pvdid-netlink.o:	CFLAGS+=-fno-strict-aliasing
 
@@ -50,3 +58,14 @@ cleaninstall :
 		$(DESTDIR)/sbin/pvdid-daemon \
 		$(DESTDIR)/lib/libpvdid.so \
 		$(DESTDIR)/lib/libpvdid.a
+
+cleandepend :
+	$(RM) -f ./obj/Makefile.depend
+
+depend : obj
+	for f in $(SRCS); do\
+		$(CC) $(CFLAGS) -M -MT obj/"`basename $$f .c`.o" $$f -o -;\
+	done >./obj/Makefile.depend
+
+-include ./obj/Makefile.depend
+
