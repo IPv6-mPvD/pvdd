@@ -1,0 +1,22 @@
+
+Start httpsServer.sh :
+cd test
+node ./httpsServer.sh
+
+Start the pvdid-daemon :
+./obj/pvdid-daemon -v
+
+Start the monitoring daemon :
+cd utils
+./pvdid-monitor --verbose --debug --pvd pvd.cisco.copvd.orange.com localhost
+
+Start a client :
+cd tests
+./pvdid-simple-client-2.sh
+
+Force the hflag to 1 :
+cd tests
+./pvdid-setattr.sh
+./pvdid-setseq.sh pvd.cisco.com
+
+
