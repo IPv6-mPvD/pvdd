@@ -69,6 +69,12 @@ struct pvd_list {
 
 #endif	/* SO_GETPVDINFO */
 
+/*
+ * Communication with the pvdid-daemon
+ * Asynchronous notifications require the application to parse the
+ * incoming strings. They are received via calls to recv()/read()
+ * on the socket returned by pvdid_connect()
+ */
 extern int	pvdid_connect(int Port);
 extern int	pvdid_get_control_socket(int fd);
 extern int	pvdid_get_binary_socket(int fd);
@@ -92,6 +98,9 @@ extern int	pvdid_get_dnssl_sync(int fd, char *pvdId, t_pvdid_dnssl *PtDnssl);
 extern void	pvdid_release_rdnss(t_pvdid_rdnss *PtRdnss);
 extern void	pvdid_release_dnssl(t_pvdid_dnssl *PtDnssl);
 
+/*
+ * Encapsulation of setsockopt/getsockopt calls (direct kernel communication)
+ */
 extern	int	sock_bind_to_pvd(int s, char *pvdname);
 extern	int	sock_get_bound_pvd(int s, char *pvdname);
 extern	int	pvd_get_list(struct pvd_list *pvl);
