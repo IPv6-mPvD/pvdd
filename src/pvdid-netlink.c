@@ -76,6 +76,18 @@ struct nd_opt_route_info_local { /* route information */
 #define ND_OPT_RDNSS_INFORMATION 25
 
 /* */
+struct nd_opt_pvdid {
+	uint8_t nd_opt_pvdid_type;
+	uint8_t nd_opt_pvdid_len;
+	uint8_t nd_opt_pvdid_seq : 4;
+	uint8_t nd_opt_pvdid_h : 1;
+	uint8_t nd_opt_pvdid_l : 1;
+	uint16_t nd_opt_pvdid_reserved : 10;
+	uint32_t nd_opt_pvdid_lifetime;
+	unsigned char nd_opt_pvdid_name[];
+};
+
+
 struct nd_opt_rdnss_info_local {
 	uint8_t nd_opt_rdnssi_type;
 	uint8_t nd_opt_rdnssi_len;
@@ -279,16 +291,14 @@ static void process_ra(unsigned char *msg, int len, struct sockaddr_in6 *addr)
 		}
 		case ND_OPT_DNSSL_INFORMATION: {
 			int offset;
-			struct nd_opt_dnssl_info_local *dnsslinfo = (struct nd_opt_dnssl_info_local *)opt_str;
-			if (len < sizeof(*dnsslinfo))
-				return;
-			DLOG("ND_OPT_DNSSL_INFORMATION present in RA\n");
+			struct nd_opt_dnssl_info_local *dnssl_info = (struct nd_opt_dnssl_info_local *)opt_str;
+			char suffix[256] = {""};
 
-			for (offset = 0; offset < (dnsslinfo->nd_opt_dnssli_len - 1) * 8;) {
-				char suffix[256] = {""};
-				if (&dnsslinfo->nd_opt_dnssli_suffixes[offset] - opt_str >= len)
-					return;
-				int label_len = dnsslinfo->nd_opt_dnssli_suffixes[offset++];
+			if (len < sizeof(*dnssl_info))
+				return;
+
+			for (offset = 0; offset < (dnssl_info->nd_opt_dnssli_len - 1) * 8;) {
+				int label_len = dnssl_info->nd_opt_dnssli_suffixes[offset++];
 
 				if (label_len == 0) {
 					/*
@@ -301,30 +311,28 @@ static void process_ra(unsigned char *msg, int len, struct sockaddr_in6 *addr)
 					if (nDNSSL < DIM(TabDNSSL)) {
 						TabDNSSL[nDNSSL++] = strdup(suffix);
 					}
+
+					suffix[0] = '\0';
 					continue;
 				}
 
-				/*
-				 * 1) must not overflow int: label + 2, offset + label_len
-				 * 2) last byte of dnssli_suffix must not overflow opt_str + len
-				 */
-				if ((sizeof(suffix) - strlen(suffix)) < (label_len + 2) || label_len >= (INT_MAX - 1) ||
-				    &dnsslinfo->nd_opt_dnssli_suffixes[offset + label_len] - opt_str >= len ||
-				    offset + label_len < offset) {
-					_DLOG(LOG_ERR, "oversized suffix in DNSSL option from %s\n", addr_str);
+				if ((sizeof(suffix) - strlen(suffix)) < (label_len + 2)) {
+					DLOG("oversized suffix in DNSSL option from %s\n", addr_str);
 					break;
 				}
 
 				if (suffix[0] != '\0')
 					strcat(suffix, ".");
-				strncat(suffix, (char *)&dnsslinfo->nd_opt_dnssli_suffixes[offset], label_len);
+				strncat(suffix, (char *)&dnssl_info->nd_opt_dnssli_suffixes[offset], label_len);
 				offset += label_len;
 			}
+
+			DLOG("ND_OPT_DNSSL_INFORMATION : %d DNSSL items (max %d)\n", nDNSSL, (int) DIM(TabDNSSL));
 			break;
 		}
 		case ND_OPT_PVDID: {
-			struct nd_opt_pvdid_info_local *pvdidinfo = (struct nd_opt_pvdid_info_local *) opt_str;
-			if (len < sizeof(*pvdidinfo))
+			struct nd_opt_pvdid *pvd = (struct nd_opt_pvdid *) opt_str;
+			if (len < sizeof(*pvd))
 				return;
 			DLOG("ND_OPT_PVDID present in RA\n");
 
@@ -333,14 +341,14 @@ static void process_ra(unsigned char *msg, int len, struct sockaddr_in6 *addr)
 				break;
 			}
 
-			pvdIdSeq = ntohs((pvdidinfo->nd_opt_pvdidi_reserved1 & 0xF0) >> 4);
-			pvdIdH = (pvdidinfo->nd_opt_pvdidi_reserved1 & 0x08) >> 3;
-			pvdIdL = (pvdidinfo->nd_opt_pvdidi_reserved1 & 0x03) >> 2;
-			pvdIdLifetime = ntohl(pvdidinfo->nd_opt_pvdidi_lifetime);
+			pvdIdSeq = pvd->nd_opt_pvdid_seq;
+			pvdIdH = pvd->nd_opt_pvdid_h;
+			pvdIdL = pvd->nd_opt_pvdid_l;
+			pvdIdLifetime = ntohl(pvd->nd_opt_pvdid_lifetime);
 
 			// We will modify in place the buffer to put '.' where
 			// needed
-			unsigned char *pt = pvdidinfo->nd_opt_pvdidi_suffix;
+			unsigned char *pt = pvd->nd_opt_pvdid_name;
 			int labelLen = *pt++;
 
 			if (labelLen == 0) {
@@ -357,7 +365,7 @@ static void process_ra(unsigned char *msg, int len, struct sockaddr_in6 *addr)
 			}
 			// Hopefully ends with a '\0'
 
-			strcpy(pvdId, (char *) &pvdidinfo->nd_opt_pvdidi_suffix[1]);
+			strcpy(pvdId, (char *) &pvd->nd_opt_pvdid_name[1]);
 
 			break;
 		}
@@ -412,7 +420,7 @@ static void process_ra(unsigned char *msg, int len, struct sockaddr_in6 *addr)
 		for (i = 0; i < nPrefix; i++) {
 			SBAddString(
 				&SB,
-				"\t\"%s:%d\" : { ",
+				"\t\"%s/%d\" : { ",
 				TabPrefix[i].prefix,
 				TabPrefix[i].prefixLen);
 			SBAddString(
