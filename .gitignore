@@ -5,3 +5,4 @@ libpvdid-test
 pvdid-daemon
 *.so
 *.a
+obj
