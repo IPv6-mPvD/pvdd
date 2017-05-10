@@ -5,4 +5,5 @@ libpvdid-test
 pvdid-daemon
 *.so
 *.a
+sockonnekt
 obj
