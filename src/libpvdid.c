@@ -485,6 +485,10 @@ int	pvdid_get_dnssl_sync(int fd, char *pvdId, t_pvdid_dnssl *PtDnssl)
 }
 
 /*
+ * Helper functions directly talking to the kernel via sockets options
+ * (the functions above were talking to the pvdid daemon)
+ */
+/*
  * Specialized function encapsulating the SO_BINDTOPVD socket option
  * sock_bind_to_pvd/sock_get_bound_pvd are used to bind a single pvd
  * to a socket, and are mostly useful as an example on how to use the
@@ -494,17 +498,6 @@ int	pvdid_get_dnssl_sync(int fd, char *pvdId, t_pvdid_dnssl *PtDnssl)
  * kernel : this is why the expected argument to SO_BINDTOPVD is the
  * address of a pointer to the effective structure (double reference)
  */
-#ifndef	SO_BINDTOPVD
-#define	SO_BINDTOPVD	55
-
-#define MAXBOUNDPVD     32
-
-struct bind_to_pvd {
-	int	npvd;	/* in/out */
-	char	pvdnames[MAXBOUNDPVD][PVDIDNAMESIZ];
-};
-#endif
-
 int	sock_bind_to_pvd(int s, char *pvdname)
 {
 	struct bind_to_pvd	btp, *pbtp = &btp;
@@ -532,47 +525,6 @@ int	sock_get_bound_pvd(int s, char *pvdname)
 	}
 	return(rc);
 }
-
-#ifndef	PVDNAMSIZ
-#define	PVDNAMSIZ	1024
-#endif
-
-#ifndef	MAXPVD
-/*
- * MAXPVD must be a power of 2
- */
-#define	MAXPVDSHIFT	10	/* realistic upper bound */
-#define	MAXPVD		(1 << MAXPVDSHIFT)
-
-#endif
-
-#ifndef	SO_GETPVDINFO
-
-#define	SO_GETPVDINFO		56
-
-/*
- * For SO_GETPVDINFO
- */
-struct net_pvd_attribute {
-	char			name[PVDNAMSIZ];
-	int			index;	/* unique number */
-
-	/*
-	 * Attributes of the pvd
-	 */
-	int			sequence_number;
-	int			h_flag;
-	int			l_flag;
-
-	unsigned long		expires;	/* lifetime field */
-};
-
-struct pvd_list {
-	int npvd;	/* in/out */
-	struct net_pvd_attribute pvds[MAXPVD];
-};
-
-#endif	/* SO_GETPVDINFO */
 
 int	pvd_get_list(struct pvd_list *pvl)
 {
