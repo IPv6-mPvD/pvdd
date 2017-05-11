@@ -31,7 +31,7 @@ obj/%.o:%.c
 
 obj/pvdid-netlink.o:	CFLAGS+=-fno-strict-aliasing
 
-obj/pvdid-daemon : $(OFDAEMON)
+obj/pvdid-daemon : $(OFDAEMON) obj/libpvdid.a
 	$(CC) -g -o $@ $^
 
 $(OFLIB) :	CFLAGS+=-fpic -O2
