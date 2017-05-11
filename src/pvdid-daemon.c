@@ -50,6 +50,8 @@
 #include "pvdid-utils.h"
 #include "pvdid-netlink.h"
 
+#include "libpvdid.h"
+
 /* constants and macros ------------------------------------------ */
 
 #define	NEW(t)	((t *) malloc(sizeof(t)))
@@ -1143,11 +1145,12 @@ static	int	getint(char *s, int *PtN)
 
 int	main(int argc, char **argv)
 {
-	int	i;
-	int	Port = DEFAULT_PVDID_PORT;
-	char	*PersistentDir = NULL;
-	int	sockIcmpv6;
-	int	serverSock;
+	int		i;
+	int		Port = DEFAULT_PVDID_PORT;
+	char		*PersistentDir = NULL;
+	int		sockIcmpv6;
+	int		serverSock;
+	struct pvd_list	pvl;	/* careful : this can be quite big */
 
 	lMyName = basename(strdup(argv[0]));	// valgrind : leak on strdup
 
@@ -1208,10 +1211,33 @@ int	main(int argc, char **argv)
 	}
 
 	/*
-	 * TODO :
 	 * On startup, we must query the kernel for its current
-	 * RA tables (at least, for the current pvdId list)
+	 * RA tables (at least, for the current pvdId list).
+	 * An error can occur if the kernel is not recognizing
+	 * the command (ENOPROTOOPT)
 	 */
+	pvl.npvd = MAXPVD;
+	if (pvd_get_list(&pvl) != -1) {
+		struct net_pvd_attribute *pa;
+		for (i = 0, pa = pvl.pvds; i < pvl.npvd; i++, pa++) {
+			t_PvdId	*PtPvdId = RegisterPvdId(pa->index, pa->name);
+
+			if (PtPvdId == NULL) {
+				// Fatal error
+				fprintf(stderr, "Can not register pvd %s\n", pa->name);
+				return(1);
+			}
+			PvdIdBeginTransaction(pa->name);
+			PvdIdSetAttr(
+				PtPvdId,
+				"sequenceNumber",
+				GetIntStr(pa->sequence_number));
+			PvdIdSetAttr(PtPvdId, "hFlag", GetIntStr(pa->h_flag));
+			PvdIdSetAttr(PtPvdId, "lFlag", GetIntStr(pa->l_flag));
+			PvdIdSetAttr(PtPvdId, "lifetime", GetIntStr(pa->expires));
+			PvdIdEndTransaction(PtPvdId);
+		}
+	}
 
 	/*
 	 * Create the listening clients socket
