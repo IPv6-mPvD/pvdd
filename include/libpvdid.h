@@ -76,6 +76,8 @@ struct pvd_list {
  * on the socket returned by pvdid_connect()
  */
 extern int	pvdid_connect(int Port);
+extern void	pvdid_disconnect(int fd);
+extern int	pvdid_reconnect(int fd);
 extern int	pvdid_get_control_socket(int fd);
 extern int	pvdid_get_binary_socket(int fd);
 extern int	pvdid_get_pvdid_list(int fd);
