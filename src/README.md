@@ -287,9 +287,30 @@ defined in the header file and to initiailze the _npvd_ field to __MAXPVD__.
 That being said, _pvd\_get\_list()_ will primilarily be used by the pvdid daemon and not
 by the applications (although nothing prevents them to call it).
 
-### TODO
+## Well known attributes names
+Some attributes are well known. They can be found in the JSON returned structure.
+
+They are :
+
++ pvdId : the PvD name (a string)
++ pvdIdHandle : a unique number
++ sequenceNumber : the PvD sequence number (an integer)
++ hFlag : the h flag of the PvD (0 or 1)
++ lFlag : the l flag of the PvD (0 or 1)
++ lifetime : the expire value of the PvD (an integer)
++ RDNSS : the list of DNS recursive servers associated to this PvD (array of strings)
++ DNSSL : the list of DNS lookup domains (array of strings)
++ extraInfo : the JSON structure retrieved from https://\<pvdid\>/pvd.json
+
+
+## TODO
 There is a lack of consistency in the various namings or in the way items should be freed/released.
 
 Add a mechanism to allow an application to properly gather multi-lines messages.
 
 We need to decide whether to prefix things with __pvd__ or with __pvdid__.
+
+Thinking at it, it will be probably be better for the connection functions to return
+an allocated structure containing, other things, the socket and provide accessors for
+it.
+
