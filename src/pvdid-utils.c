@@ -163,4 +163,14 @@ char	*JsonArray(int nStr, char **str)
 	return(SB.String);
 }
 
+/* GetIntStr : return a static string representation of an integer */
+char	*GetIntStr(int n)
+{
+	static	char	lS[128];
+
+	sprintf(lS, "%u", (unsigned int) n);
+
+	return(lS);
+}
+
 /* ex: set ts=8 noexpandtab wrap: */

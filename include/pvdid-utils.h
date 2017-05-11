@@ -30,6 +30,7 @@ extern void SBUninit(t_StringBuffer *PtSB);
 extern int SBAddString(t_StringBuffer *PtSB, char *fmt, ...);
 extern char *JsonString(char *str);
 extern char *JsonArray(int nStr, char **str);
+extern char *GetIntStr(int n);
 
 extern int lFlagVerbose;
 

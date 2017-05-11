@@ -135,16 +135,6 @@ struct nd_opt_pvdid_info_local {
 	unsigned char nd_opt_pvdidi_suffix[];
 };
 
-/* GetIntStr : return a static string representation of an integer */
-static	char	*GetIntStr(int n)
-{
-	static	char	lS[128];
-
-	sprintf(lS, "%u", (unsigned int) n);
-
-	return(lS);
-}
-
 /* This assumes that str is not null and str_size > 0 */
 static void addrtostr(struct in6_addr const *addr, char *str, size_t str_size)
 {
