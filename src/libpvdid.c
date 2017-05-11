@@ -165,7 +165,7 @@ int	pvdid_reconnect(int fd)
 	return(reopen_connection(fd));
 }
 
-void	pvd_disconnect(int fd)
+void	pvdid_disconnect(int fd)
 {
 	close(fd);
 }
@@ -176,7 +176,7 @@ int	pvdid_get_control_socket(int fd)
 
 	if ((s = reopen_connection(fd)) != -1) {
 		if (SendExact(s, "PVDID_CONNECTION_PROMOTE_CONTROL\n") == -1) {
-			pvd_disconnect(s);
+			pvdid_disconnect(s);
 			return(-1);
 		}
 	}
@@ -191,7 +191,7 @@ int	pvdid_get_binary_socket(int fd)
 
 	if ((s = reopen_connection(fd)) != -1) {
 		if (SendExact(s, "PVDID_CONNECTION_PROMOTE_BINARY\n") == -1) {
-			pvd_disconnect(s);
+			pvdid_disconnect(s);
 			return(-1);
 		}
 	}
@@ -242,7 +242,7 @@ int	pvdid_get_pvdid_list_sync(int fd, t_pvdid_list *pvdIdList)
 			}
 			free(msg);
 		}
-		pvd_disconnect(s);
+		pvdid_disconnect(s);
 	}
 	return(rc);
 }
@@ -278,7 +278,7 @@ int	pvdid_get_attributes_sync(int fd, char *pvdId, char **attributes)
 			}
 			free(msg);
 		}
-		pvd_disconnect(s);
+		pvdid_disconnect(s);
 	}
 	return(*attributes == NULL ? -1 : 0);
 }
@@ -312,7 +312,7 @@ int	pvdid_get_attribute_sync(int fd, char *pvdId, char *attrName, char **attrVal
 
 			free(msg);
 		}
-		pvd_disconnect(s);
+		pvdid_disconnect(s);
 	}
 
 	return(*attrValue == NULL ? -1 : 0);
@@ -459,7 +459,7 @@ int	pvdid_get_rdnss_sync(int fd, char *pvdId, t_pvdid_rdnss *PtRdnss)
 			}
 			free(msg);
 		}
-		pvd_disconnect(s);
+		pvdid_disconnect(s);
 	}
 	return(rc);
 }
@@ -489,7 +489,7 @@ int	pvdid_get_dnssl_sync(int fd, char *pvdId, t_pvdid_dnssl *PtDnssl)
 			}
 			free(msg);
 		}
-		pvd_disconnect(s);
+		pvdid_disconnect(s);
 	}
 	return(rc);
 }
