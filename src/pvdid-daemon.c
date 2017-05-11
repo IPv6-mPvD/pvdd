@@ -448,6 +448,7 @@ static	t_PvdId	*RegisterPvdId(int pvdIdHandle, char *pvdId)
 	PvdIdSetAttr(PtPvdId, "sequenceNumber", "0");
 	PvdIdSetAttr(PtPvdId, "hFlag", "0");	// by default
 	PvdIdSetAttr(PtPvdId, "lFlag", "0");
+	PvdIdSetAttr(PtPvdId, "lifetime", "0xffffffff");
 
 	// Link it at the head of the list
 	PtPvdId->next = lFirstPvdId;
