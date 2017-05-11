@@ -258,8 +258,38 @@ extern void	pvdid_release_rdnss(t_pvdid_rdnss *PtRdnss);
 extern void	pvdid_release_dnssl(t_pvdid_dnssl *PtDnssl);
 ~~~~
 
-#### TODO
+### Kernel interfaces
+There are a few functions directly talking to the kernel (in contrast to the other ones
+talking to the daemon).
+
+~~~~
+extern	int	sock_bind_to_pvd(int s, char *pvdname);
+extern	int	sock_get_bound_pvd(int s, char *pvdname);
+extern	int	pvd_get_list(struct pvd_list *pvl);
+~~~~
+
+_sock\_bind\_to\_pvd()_ and _sock\_get\_bound\_pvd()_ might be used if an application wishes to
+bind a socket to a single PvD. Here, _s_ is a socket, and not a connection socket with
+the daemon.
+
+The general case being that a socket can be bound to a multitude of PvDs, these
+functions are of limited use and merely serve (for those having access to the source
+code of the library) as an example.
+
+The _pvdname_ parameter of _sock\_get\_bound\_pvd()_ is the address of an array of sufficient size
+(aka PVDNAMSIZ).
+
+The _pvl_ parameter of the _pvd\_get\_list()_ function must be initialized by the
+caller : the __npvd__ field of the structure must contain the dimension of the
+__pvds__ field. It is safe for the application to use the _struct pvd\_list_ structure
+defined in the header file and to initiailze the _npvd_ field to __MAXPVD__.
+
+That being said, _pvd\_get\_list()_ will primilarily be used by the pvdid daemon and not
+by the applications (although nothing prevents them to call it).
+
+### TODO
 There is a lack of consistency in the various namings or in the way items should be freed/released.
 
 Add a mechanism to allow an application to properly gather multi-lines messages.
 
+We need to decide whether to prefix things with __pvd__ or with __pvdid__.
