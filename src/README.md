@@ -292,15 +292,15 @@ Some attributes are well known. They can be found in the JSON returned structure
 
 They are :
 
-+ pvdId : the PvD name (a string)
-+ pvdIdHandle : a unique number
-+ sequenceNumber : the PvD sequence number (an integer)
-+ hFlag : the h flag of the PvD (0 or 1)
-+ lFlag : the l flag of the PvD (0 or 1)
-+ lifetime : the expire value of the PvD (an integer)
-+ RDNSS : the list of DNS recursive servers associated to this PvD (array of strings)
-+ DNSSL : the list of DNS lookup domains (array of strings)
-+ extraInfo : the JSON structure retrieved from https://\<pvdid\>/pvd.json
++ __pvdId__ : the PvD name (a string)
++ __pvdIdHandle__ : a unique number allocated by the kernel to this PvD instance
++ __sequenceNumber__ : the PvD sequence number (an integer between 0 and 15 [4 bits])
++ __hFlag__ : the h flag of the PvD (0 or 1)
++ __lFlag__ : the l flag of the PvD (0 or 1)
++ __lifetime__ : the expire value of the PvD (an integer)
++ __RDNSS__ : the list of DNS recursive servers associated to this PvD (array of strings)
++ __DNSSL__ : the list of DNS lookup domains (array of strings)
++ __extraInfo__ : the JSON structure retrieved from https://\<pvdid\>/pvd.json
 
 
 ## TODO
