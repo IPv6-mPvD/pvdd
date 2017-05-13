@@ -278,10 +278,7 @@ extern int	pvdid_get_dnssl(t_pvd_connection *conn, char *pvdId);
 ~~~~
 
 Following requests, the daemon should send replies. The format of these replies
-is specified on the top-level README.md.
-
-__Note__ : we will certainly provide an easy way for applications to collect multi-lines
-messages received via multiple read()/recv() calls.
+is specified on the top-level __README.md__.
 
 ### Helpers
 
@@ -294,7 +291,7 @@ extern void	pvdid_release_dnssl(t_pvdid_dnssl *PtDnssl);
 ~~~~
 
 The following functions make it easier for an application to retrieve messages from
-the daemon. They are intended to be used in a loop-based program (based on select()/poll()
+the daemon. They are intended to be used in a loop-based program (based on _select()/poll()_
 or any similar mechanism provided by different frameworks/libraries).
 
 ~~~~
@@ -320,11 +317,11 @@ means that a message too large for the protocol has been advertised by the daemo
 we recommend to close the connection and reestablish it
 
 
-__pvdid_get_message()__ attempts to retrieve a message from the internal buffer. It must be
-called when __pvdid_read_data()__ has returned PVD_READ_OK.
+__pvdid\_get\_message()__ attempts to retrieve a message from the internal buffer. It must be
+called when __pvdid\_read\_data()__ has returned __PVD\_READ\_OK__.
 
 The message (a string ending with a \\n) is returned in __msg__. It does not need to be freed :
-the next call to __pvdid_get_message()__ will free it (that means that the application must
+the next call to __pvdid\_get\_message()__ will free it (that means that the application must
 duplicate it if it needs to address to the message at a later stage).
 
 It returns :
@@ -332,11 +329,11 @@ It returns :
 + __PVD\_NO\_MESSAGE\_READ__ : a full message could not be read. That means that, usually, more
 data is needed from the connection. The application must wait for new data
 + __PVD\_MESSAGE\_READ__ : a full message has been read. It is stored in __msg__. The message
-can be a multi-lines one (typically, this can be the case for PVDID\_ATTRIBUTE[s] messages).
+can be a multi-lines one (typically, this can be the case for __PVDID\_ATTRIBUTE[S]__ messages).
 The application can then wait for new  data
-+ __PVD\_MORE\_DATA\_AVAILABLE__ : a full message has been read (as in the _PVD\_MESSAGE\_READ_ case),
++ __PVD\_MORE\_DATA\_AVAILABLE__ : a full message has been read (as in the __PVD\_MESSAGE\_READ__ case),
 but there is still pending data in the internal buffer. The function must be called again
-until it says _PVD\_NO\_MESSAGE\_READ_ or _PVD\_MESSAGE\_READ_.
+until it says __PVD\_NO\_MESSAGE\_READ__ or __PVD\_MESSAGE\_READ__.
 
 
 
