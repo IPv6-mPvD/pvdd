@@ -8,7 +8,7 @@ Start the pvdid-daemon :
 
 Start the monitoring daemon :
 cd utils
-./pvdid-monitor --verbose --debug --pvd pvd.cisco.copvd.orange.com localhost
+./pvdid-monitor --verbose --debug --pvd pvd.cisco.com pvd.orange.com localhost
 
 Start a client :
 cd tests
