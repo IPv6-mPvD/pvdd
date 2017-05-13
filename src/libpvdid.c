@@ -35,11 +35,6 @@
 #undef	NEW
 #define	NEW(t)	((t *) malloc(sizeof(t)))
 
-#define	INVALID_CONNECTION	0
-#define	REGULAR_CONNECTION	1
-#define	CONTROL_CONNECTION	2
-#define	BINARY_CONNECTION	3
-
 struct t_pvd_connection {
 	int	fd;
 	int	type;		/* xxx_CONNECTION above */
@@ -675,7 +670,7 @@ int	pvdid_read_data(t_pvd_connection *conn)
 	if ((m = sizeof(conn->ReadBuffer) - 1 - conn->InReadBuffer) <= 0) {
 		// Buffer full : abnormal situation where no complete
 		// message could be read
-		return(PVFD_READ_BUFFER_FULL);
+		return(PVD_READ_BUFFER_FULL);
 	}
 	if ((n = recv(conn->fd,
 		      &conn->ReadBuffer[conn->InReadBuffer],

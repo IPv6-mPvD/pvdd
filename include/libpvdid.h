@@ -77,7 +77,7 @@ struct pvd_list {
 /*
  * Return codes
  */
-#define	PVFD_READ_BUFFER_FULL	-1
+#define	PVD_READ_BUFFER_FULL	-1
 #define	PVD_READ_ERROR		-2
 #define	PVD_READ_OK		0
 
@@ -149,6 +149,11 @@ extern int		pvdid_get_dnssl_sync(
 /*
  * Accessors
  */
+#define	INVALID_CONNECTION	0
+#define	REGULAR_CONNECTION	1
+#define	CONTROL_CONNECTION	2
+#define	BINARY_CONNECTION	3
+
 extern int		pvd_connection_fd(t_pvd_connection *conn);
 extern int		pvd_connection_type(t_pvd_connection *conn);
 
