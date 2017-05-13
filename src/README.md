@@ -29,11 +29,11 @@ The pvdid daemon is only accepting connection on 0.0.0.0. The port it listens on
 however can have been specified when the daemon has been started. In this case,
 the corresponding port must also be provided by the application to the library.
 
-If not, an environment variable will be used.
+If not, an environment variable (__PVDID_PORT__) will be used.
 
 The basic way of interacting with the daemon is :
 
-+ establish a connection with the daemon (this gives a socket descriptor)
++ establish a connection with the daemon (this gives a connection handle)
 + eventually create additional connections given this initial connection (for example
 create control or binary sockets)
 + perform interaction with the daemon by sending requests
@@ -63,6 +63,14 @@ Access to the prototypes and types definitions is done by including \<libpvdid.h
 ### Types
 The following types are defined. They can be returned by various calls (listed in
 the next sections).
+
+#### Connection handle
+This is an opaque incomplete type. Accessors are provided to retrieve useful fields (such as
+the associated socket).
+
+~~~~
+typedef	struct t_pvd_connection	t_pvd_connection;
+~~~~
 
 #### pvd list
 
@@ -143,19 +151,19 @@ starting.
 There are 2 ways of creating a connection with the daemon :
 
 + by providing the connection port
-+ by providing an existing connection socket
++ by providing an existing connection handle
 
-Disconnection is done by providing a connection socket.
+Disconnection is done by providing a connection handle.
 
 The prototypes are as follows :
 
 ~~~~
-extern int	pvdid_connect(int Port);
-extern int	pvdid_reconnect(int fd);
-extern int	pvdid_get_control_socket(int fd);
-extern int	pvdid_get_binary_socket(int fd);
+extern t_pvd_connection	*pvdid_connect(int Port);
+extern t_pvd_connection	*pvdid_reconnect(t_pvd_connection *conn);
+extern t_pvd_connection	*pvdid_get_control_socket(t_pvd_connection *conn);
+extern t_pvd_connection	*pvdid_get_binary_socket(t_pvd_connection *conn);
 
-extern void	pvdid_disconnect(int fd);
+extern void	pvdid_disconnect(t_pvd_connection *conn);
 ~~~~
 
 If _Port_ is not -1, its value is used to connect to the daemon.
@@ -165,11 +173,33 @@ exists. If it does, its value is used to connect to the daemon.
 
 Otherwise, the default port value (10101) is used.
 
-If _fd_ is provided, it must have been obtained via a previous call of one of the
+If _conn_ is provided, it must have been obtained via a previous call of one of the
 connection routines. Its characteristics are reused (connection port mainly).
 
 Connection channels do not interfere, which allows implementing localized
 interaction with the daemon without disturbing existing connections.
+
+### Accessors
+
+Some accessors give access to the internal field of the connection handle.
+
+~~~~
+extern	int	pvd_connection_fd(t_pvd_connection *conn);
+extern	int	pvd_connection_type(t_pvd_connection *conn);
+~~~~
+
+The socket descriptor returned by __pvd_connection_fd()__ can be used as usual,
+except that helper functions help the application to retrieve messages out of
+it.
+
+The connection type is either :
+
++ INVALID_CONNECTION
++ REGULAR_CONNECTION
++ BINARY_CONNECTION
++ CONTROL_CONNECTION
+
+Currently, this connection type is of little use for the application.
 
 ### Synchronous calls
 
@@ -182,11 +212,16 @@ information on the nature of the error, if any.
 Here are they :
 
 ~~~~
-extern int	pvdid_get_pvdid_list_sync(int fd, t_pvdid_list *pvdIdList);
-extern int	pvdid_get_attributes_sync(int fd, char *pvdId, char **attributes);
-extern int	pvdid_get_attribute_sync(int fd, char *pvdId, char *attrName, char **attrValue);
-extern int	pvdid_get_rdnss_sync(int fd, char *pvdId, t_pvdid_rdnss *PtRdnss);
-extern int	pvdid_get_dnssl_sync(int fd, char *pvdId, t_pvdid_dnssl *PtDnssl);
+extern int	pvdid_get_pvdid_list_sync(
+			t_pvd_connection *conn, t_pvdid_list *pvdIdList);
+extern int	pvdid_get_attributes_sync(
+			t_pvd_connection *conn, char *pvdId, char **attributes);
+extern int	pvdid_get_attribute_sync(
+			t_pvd_connection *conn, char *pvdId, char *attrName, char **attrValue);
+extern int	pvdid_get_rdnss_sync(
+			t_pvd_connection *conn, char *pvdId, t_pvdid_rdnss *PtRdnss);
+extern int	pvdid_get_dnssl_sync(
+			t_pvd_connection *conn, char *pvdId, t_pvdid_dnssl *PtDnssl);
 ~~~~
 
 The _pvdid\_get\_attributes\_sync_ function returns all the attributes collected
@@ -211,7 +246,7 @@ extern void	pvdid_release_rdnss(t_pvdid_rdnss *PtRdnss);
 extern void	pvdid_release_dnssl(t_pvdid_dnssl *PtDnssl);
 ~~~~
 
-From an implementation point of view, the _fd_ parameter is simply cloned to create
+From an implementation point of view, the _conn parameter is simply cloned to create
 a new connection channel just for the sake of sending the requests and receiving
 the reply. It is then closed.
 
@@ -231,15 +266,15 @@ mechanism the application feels comfortable with (sscanf(), strcmp(), etc.).
 The functions are :
 
 ~~~~
-extern int	pvdid_get_pvdid_list(int fd);
-extern int	pvdid_get_attributes(int fd, char *pvdId);
-extern int	pvdid_get_attribute(int fd, char *pvdId, char *attrName);
-extern int	pvdid_subscribe_notifications(int fd);
-extern int	pvdid_unsubscribe_notifications(int fd);
-extern int	pvdid_subscribe_pvdid_notifications(int fd, char *pvdId);
-extern int	pvdid_unsubscribe_pvdid_notifications(int fd, char *pvdId);
-extern int	pvdid_get_rdnss(int fd, char *pvdId);
-extern int	pvdid_get_dnssl(int fd, char *pvdId);
+extern int	pvdid_get_pvdid_list(t_pvd_connection *conn);
+extern int	pvdid_get_attributes(t_pvd_connection *conn, char *pvdId);
+extern int	pvdid_get_attribute(t_pvd_connection *conn, char *pvdId, char *attrName);
+extern int	pvdid_subscribe_notifications(t_pvd_connection *conn);
+extern int	pvdid_unsubscribe_notifications(t_pvd_connection *conn);
+extern int	pvdid_subscribe_pvdid_notifications(t_pvd_connection *conn, char *pvdId);
+extern int	pvdid_unsubscribe_pvdid_notifications(t_pvd_connection *conn, char *pvdId);
+extern int	pvdid_get_rdnss(t_pvd_connection *conn, char *pvdId);
+extern int	pvdid_get_dnssl(t_pvd_connection *conn, char *pvdId);
 ~~~~
 
 Following requests, the daemon should send replies. The format of these replies
@@ -257,6 +292,53 @@ extern int	pvdid_parse_dnssl(char *msg, t_pvdid_dnssl *PtDnssl);
 extern void	pvdid_release_rdnss(t_pvdid_rdnss *PtRdnss);
 extern void	pvdid_release_dnssl(t_pvdid_dnssl *PtDnssl);
 ~~~~
+
+The following functions make it easier for an application to retrieve messages from
+the daemon. They are intended to be used in a loop-based program (based on select()/poll()
+or any similar mechanism provided by different frameworks/libraries).
+
+~~~~
+extern	int		pvdid_read_data(t_pvd_connection *conn);
+extern	int		pvdid_get_message(t_pvd_connection *conn, int *multiLines, char **msg);
+~~~~
+
+These two functions are meant to be used together :
+
+__pvdid_read_data()__ must be called when there is some data available on the connection.
+
+It will store the read data into an internal buffer of limited size (currently 4K). It also
+handles binary as  well as regular connections (binary connections first send the payload
+size and then the payload itself).
+
+It returns :
+
++ __PVD\_READ\_OK__ if some data could be read from the connection
++ __PVD\_READ\_ERROR__ in case of an error within the connection with the daemon. In this case, it is
+recommended to close the connection and attempt to reestablish it
++ __PVD\_READ\_BUFFER\_FULL__ if data needs to be read but the internal buffer is full. This probably
+means that a message too large for the protocol has been advertised by the daemon. In this case also
+we recommend to close the connection and reestablish it
+
+
+__pvdid_get_message()__ attempts to retrieve a message from the internal buffer. It must be
+called when __pvdid_read_data()__ has returned PVD_READ_OK.
+
+The message (a string ending with a \\n) is returned in __msg__. It does not need to be freed :
+the next call to __pvdid_get_message()__ will free it (that means that the application must
+duplicate it if it needs to address to the message at a later stage).
+
+It returns :
+
++ __PVD\_NO\_MESSAGE\_READ__ : a full message could not be read. That means that, usually, more
+data is needed from the connection. The application must wait for new data
++ __PVD\_MESSAGE\_READ__ : a full message has been read. It is stored in __msg__. The message
+can be a multi-lines one (typically, this can be the case for PVDID\_ATTRIBUTE[s] messages).
+The application can then wait for new  data
++ __PVD\_MORE\_DATA\_AVAILABLE__ : a full message has been read (as in the _PVD\_MESSAGE\_READ_ case),
+but there is still pending data in the internal buffer. The function must be called again
+until it says _PVD\_NO\_MESSAGE\_READ_ or _PVD\_MESSAGE\_READ_.
+
+
 
 ### Kernel interfaces
 There are a few functions directly talking to the kernel (in contrast to the other ones
@@ -306,11 +388,5 @@ They are :
 ## TODO
 There is a lack of consistency in the various namings or in the way items should be freed/released.
 
-Add a mechanism to allow an application to properly gather multi-lines messages.
-
 We need to decide whether to prefix things with __pvd__ or with __pvdid__.
-
-Thinking at it, it will be probably be better for the connection functions to return
-an allocated structure containing, other things, the socket and provide accessors for
-it.
 
