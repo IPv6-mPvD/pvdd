@@ -6,6 +6,11 @@
 #define	PVDNAMSIZ	1024
 #endif
 
+/*
+ * Opaque structure carrying a daemon connection
+ */
+typedef	struct t_pvd_connection	t_pvd_connection;
+
 #ifndef	MAXPVD
 /*
  * MAXPVD must be a power of 2
@@ -70,35 +75,94 @@ struct pvd_list {
 #endif	/* SO_GETPVDINFO */
 
 /*
+ * Return codes
+ */
+#define	PVFD_READ_BUFFER_FULL	-1
+#define	PVD_READ_ERROR		-2
+#define	PVD_READ_OK		0
+
+#define	PVD_NO_MESSAGE_READ	-1
+#define	PVD_MESSAGE_READ	0
+#define	PVD_MORE_DATA_AVAILABLE	1
+
+/*
  * Communication with the pvdid-daemon
  * Asynchronous notifications require the application to parse the
  * incoming strings. They are received via calls to recv()/read()
  * on the socket returned by pvdid_connect()
  */
-extern int	pvdid_connect(int Port);
-extern void	pvdid_disconnect(int fd);
-extern int	pvdid_reconnect(int fd);
-extern int	pvdid_get_control_socket(int fd);
-extern int	pvdid_get_binary_socket(int fd);
-extern int	pvdid_get_pvdid_list(int fd);
-extern int	pvdid_parse_pvdid_list(char *msg, t_pvdid_list *pvdIdList);
-extern int	pvdid_get_pvdid_list_sync(int fd, t_pvdid_list *pvdIdList);
-extern int	pvdid_get_attributes(int fd, char *pvdId);
-extern int	pvdid_get_attributes_sync(int fd, char *pvdId, char **attributes);
-extern int	pvdid_get_attribute(int fd, char *pvdId, char *attrName);
-extern int	pvdid_get_attribute_sync(int fd, char *pvdId, char *attrName, char **attrValue);
-extern int	pvdid_subscribe_notifications(int fd);
-extern int	pvdid_unsubscribe_notifications(int fd);
-extern int	pvdid_subscribe_pvdid_notifications(int fd, char *pvdId);
-extern int	pvdid_unsubscribe_pvdid_notifications(int fd, char *pvdId);
-extern int	pvdid_parse_rdnss(char *msg, t_pvdid_rdnss *PtRdnss);
-extern int	pvdid_parse_dnssl(char *msg, t_pvdid_dnssl *PtDnssl);
-extern int	pvdid_get_rdnss(int fd, char *pvdId);
-extern int	pvdid_get_rdnss_sync(int fd, char *pvdId, t_pvdid_rdnss *PtRdnss);
-extern int	pvdid_get_dnssl(int fd, char *pvdId);
-extern int	pvdid_get_dnssl_sync(int fd, char *pvdId, t_pvdid_dnssl *PtDnssl);
-extern void	pvdid_release_rdnss(t_pvdid_rdnss *PtRdnss);
-extern void	pvdid_release_dnssl(t_pvdid_dnssl *PtDnssl);
+extern t_pvd_connection	*pvdid_connect(int Port);
+extern void		pvdid_disconnect(
+				t_pvd_connection *conn);
+extern t_pvd_connection *pvdid_reconnect(
+				t_pvd_connection *conn);
+extern t_pvd_connection	*pvdid_get_control_socket(
+				t_pvd_connection *conn);
+extern t_pvd_connection	*pvdid_get_binary_socket(
+				t_pvd_connection *conn);
+extern int		pvdid_get_pvdid_list(
+				t_pvd_connection *conn);
+extern int		pvdid_get_pvdid_list_sync(
+				t_pvd_connection *conn,
+				t_pvdid_list *pvdIdList);
+extern int		pvdid_get_attributes(
+				t_pvd_connection *conn,
+				char *pvdId);
+extern int		pvdid_get_attributes_sync(
+				t_pvd_connection *conn,
+				char *pvdId,
+				char **attributes);
+extern int		pvdid_get_attribute(
+				t_pvd_connection *conn,
+				char *pvdId, 
+				char *attrName);
+extern int		pvdid_get_attribute_sync(
+				t_pvd_connection *conn,
+				char *pvdId, 
+				char *attrName, 
+				char **attrValue);
+extern int		pvdid_subscribe_notifications(
+				t_pvd_connection *conn);
+extern int		pvdid_unsubscribe_notifications(
+				t_pvd_connection *conn);
+extern int		pvdid_subscribe_pvdid_notifications(
+				t_pvd_connection *conn,
+				char *pvdId);
+extern int		pvdid_unsubscribe_pvdid_notifications(
+				t_pvd_connection *conn,
+				char *pvdId);
+extern int		pvdid_get_rdnss(
+				t_pvd_connection *conn,
+				char *pvdId);
+extern int		pvdid_get_rdnss_sync(
+				t_pvd_connection *conn,
+				char *pvdId,
+				t_pvdid_rdnss *PtRdnss);
+extern int		pvdid_get_dnssl(
+				t_pvd_connection *conn,
+				char *pvdId);
+extern int		pvdid_get_dnssl_sync(
+				t_pvd_connection *conn,
+				char *pvdId, 
+				t_pvdid_dnssl *PtDnssl);
+
+/*
+ * Accessors
+ */
+extern int		pvd_connection_fd(t_pvd_connection *conn);
+extern int		pvd_connection_type(t_pvd_connection *conn);
+
+/*
+ * Helper functions
+ */
+extern int		pvdid_parse_pvdid_list(char *msg, t_pvdid_list *pvdIdList);
+extern int		pvdid_parse_rdnss(char *msg, t_pvdid_rdnss *PtRdnss);
+extern int		pvdid_parse_dnssl(char *msg, t_pvdid_dnssl *PtDnssl);
+extern void		pvdid_release_rdnss(t_pvdid_rdnss *PtRdnss);
+extern void		pvdid_release_dnssl(t_pvdid_dnssl *PtDnssl);
+
+extern	int		pvdid_read_data(t_pvd_connection *conn);
+extern	int		pvdid_get_message(t_pvd_connection *conn, int *multiLines, char **msg);
 
 /*
  * Encapsulation of setsockopt/getsockopt calls (direct kernel communication)

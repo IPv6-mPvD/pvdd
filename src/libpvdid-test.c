@@ -13,12 +13,12 @@
 
 #include "libpvdid.h"
 
-static	void	GetDnssl(int mainS, char *pvdId)
+static	void	GetDnssl(t_pvd_connection *conn, char *pvdId)
 {
 	int		i;
 	t_pvdid_dnssl	dnssl;
 
-	if (pvdid_get_dnssl_sync(mainS, "pvd.cisco.com", &dnssl) == 0) {
+	if (pvdid_get_dnssl_sync(conn, "pvd.cisco.com", &dnssl) == 0) {
 		printf("DNSSL %s :", pvdId);
 		for (i = 0; i < dnssl.nDnssl; i++) {
 			printf(" %s", dnssl.Dnssl[i]);
@@ -30,28 +30,28 @@ static	void	GetDnssl(int mainS, char *pvdId)
 
 int	main(int argc, char **argv)
 {
-	int		mainS;
-	int		binaryS;
-	char		*attributes;
-	t_pvdid_list	pvdIdList;
-	t_pvdid_rdnss	rdnss;
-	struct timeval	tv;
-	int		i;
+	t_pvd_connection	*mainS;
+	t_pvd_connection	*binaryS;
+	char			*attributes;
+	t_pvdid_list		pvdIdList;
+	t_pvdid_rdnss		rdnss;
+	struct timeval		tv;
+	int			i;
 
 	printf("===================================\n");
 	printf("          1st step\n");
 	printf("===================================\n");
 
-	if ((mainS = pvdid_connect(-1)) == -1) {
+	if ((mainS = pvdid_connect(-1)) == NULL) {
 		fprintf(stderr, "Error connecting to pvdid-daemon\n");
 		return(1);
 	}
 
-	if ((binaryS = pvdid_get_binary_socket(mainS)) == -1) {
+	if ((binaryS = pvdid_get_binary_socket(mainS)) == NULL) {
 		fprintf(stderr, "Error creating binary socket to pvdid-daemon\n");
 	}
-	if (binaryS != -1) {
-		close(binaryS);
+	if (binaryS != NULL) {
+		pvdid_disconnect(binaryS);
 	}
 
 	if (pvdid_get_attributes_sync(mainS, "pvd.cisco.com", &attributes) == 0) {
@@ -104,10 +104,10 @@ int	main(int argc, char **argv)
 		int	rc;
 
 		FD_ZERO(&fdsI);
-		FD_SET(mainS, &fdsI);
+		FD_SET(pvd_connection_fd(mainS), &fdsI);
 		// Linux specific : tv is expected to be updated with the
 		// remaining time
-		if ((rc = select(mainS + 1, &fdsI, NULL, NULL, &tv)) == -1) {
+		if ((rc = select(pvd_connection_fd(mainS) + 1, &fdsI, NULL, NULL, &tv)) == -1) {
 			perror("select");
 			return(1);
 		}
@@ -118,19 +118,31 @@ int	main(int argc, char **argv)
 		}
 
 
-		if (FD_ISSET(mainS, &fdsI)) {
-			char	s[2048];
-			int	n;
+		if (FD_ISSET(pvd_connection_fd(mainS), &fdsI)) {
+			char	*msg;
+			int	multiLines;
 
-			if ((n = recv(mainS, s, sizeof(s) - 1, MSG_DONTWAIT)) <= 0) {
+			if ((rc = pvdid_read_data(mainS)) != PVD_READ_OK) {
 				// Connection with the daemon broken -> exit
-				perror("recv");
+				if (errno != 0) {
+					perror("recv");
+				}
+				else {
+					fprintf(stderr, "Lost connection with the daemon\n");
+				}
 				return(1);
 			}
-			s[n] = '\0';
-			printf("================================\n");
-			printf("%s", s);
-			printf("================================\n");
+
+			do {
+				rc = pvdid_get_message(mainS, &multiLines, &msg);
+
+				if (rc != PVD_NO_MESSAGE_READ) {
+					printf("================================\n");
+					printf("%s", msg);
+					printf("================================\n");
+
+				}
+			} while (rc == PVD_MORE_DATA_AVAILABLE);
 		}
 	}
 
@@ -150,9 +162,10 @@ int	main(int argc, char **argv)
 		tv.tv_usec = 0;
 
 		FD_ZERO(&fdsI);
-		FD_SET(mainS, &fdsI);
+		FD_SET(pvd_connection_fd(mainS), &fdsI);
 
-		if ((rc = select(mainS + 1, &fdsI, NULL, NULL, &tv)) == -1) {
+		printf("Calling select\n");
+		if ((rc = select(pvd_connection_fd(mainS) + 1, &fdsI, NULL, NULL, &tv)) == -1) {
 			perror("select");
 			return(1);
 		}
@@ -164,24 +177,37 @@ int	main(int argc, char **argv)
 			continue;
 		}
 
-		if (FD_ISSET(mainS, &fdsI)) {
-			char	s[2048];
-			int	n;
+		if (FD_ISSET(pvd_connection_fd(mainS), &fdsI)) {
+			char	*msg;
+			int	multiLines;
 
-			if ((n = recv(mainS, s, sizeof(s) - 1, MSG_DONTWAIT)) <= 0) {
+			if ((rc = pvdid_read_data(mainS)) != PVD_READ_OK) {
 				// Connection with the daemon broken -> exit
-				perror("recv");
+				if (errno != 0) {
+					perror("recv");
+
+				}
+				else {
+					fprintf(stderr, "Lost connection with the daemon\n");
+				}
 				return(1);
 			}
-			s[n] = '\0';
-			printf("++++++++++++++++++++++++++++++++\n");
-			printf("%s", s);
-			printf("++++++++++++++++++++++++++++++++\n");
+
+			do {
+				rc = pvdid_get_message(mainS, &multiLines, &msg);
+
+				if (rc != PVD_NO_MESSAGE_READ) {
+					printf("================================\n");
+					printf("%s", msg);
+					printf("================================\n");
+
+				}
+			} while (rc == PVD_MORE_DATA_AVAILABLE);
 		}
 	}
 
 
-	close(mainS);
+	pvdid_disconnect(mainS);
 	return(0);
 }
 
