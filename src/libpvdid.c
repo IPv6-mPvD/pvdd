@@ -838,6 +838,7 @@ int	sock_bind_to_pvd(int s, char *pvdname)
 {
 	struct bind_to_pvd	btp, *pbtp = &btp;
 
+	btp.scope = PVD_BIND_SCOPE_SOCKET;
 	btp.npvd = 1;
 	btp.pvdnames[0][PVDIDNAMESIZ - 1] = '\0';
 	strncpy(btp.pvdnames[0], pvdname, PVDIDNAMESIZ- 1);
@@ -851,6 +852,7 @@ int	sock_get_bound_pvd(int s, char *pvdname)
 	socklen_t optlen = sizeof(pbtp);
 	int rc;
 
+	btp.scope = PVD_BIND_SCOPE_SOCKET;
 	btp.npvd = 1;
 	if ((rc = getsockopt(s, SOL_SOCKET, SO_BINDTOPVD, &pbtp, &optlen)) == 0) {
 		if (btp.npvd == 1) {

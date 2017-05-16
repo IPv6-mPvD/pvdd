@@ -41,10 +41,16 @@ typedef	struct {
 
 #define MAXBOUNDPVD     32
 
+#define	PVD_BIND_SCOPE_SOCKET	0
+#define	PVD_BIND_SCOPE_THREAD	1
+#define	PVD_BIND_SCOPE_PROCESS	2
+
 struct bind_to_pvd {
-	int	npvd;	/* in/out */
-	char	pvdnames[MAXBOUNDPVD][PVDNAMSIZ];
+	int scope;
+	int npvd;	/* in/out */
+	char pvdnames[MAXBOUNDPVD][PVDNAMSIZ];
 };
+
 #endif
 
 #ifndef	SO_GETPVDINFO
@@ -66,6 +72,7 @@ struct net_pvd_attribute {
 
 	unsigned long		expires;	/* lifetime field */
 };
+
 
 struct pvd_list {
 	int npvd;	/* in/out */
