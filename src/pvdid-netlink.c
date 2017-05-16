@@ -154,7 +154,11 @@ static void addrtostr(struct in6_addr const *addr, char *str, size_t str_size)
  * might be of interest for clients. We want to assign the whole RA to any PVDID
  * if such PVDID option is found in the RA. Othewise, the RA will be an PVDID orphan !
  */
-static void process_ra(unsigned char *msg, int len, struct sockaddr_in6 *addr)
+static void process_ra(
+		unsigned char *msg,
+		int len,
+		struct sockaddr_in6 *addr,
+		char *if_name)
 {
 	int i;
 	char addr_str[INET6_ADDRSTRLEN];
@@ -383,6 +387,8 @@ static void process_ra(unsigned char *msg, int len, struct sockaddr_in6 *addr)
 	PvdIdSetAttr(PtPvdId, "hFlag", GetIntStr(pvdIdH));
 	PvdIdSetAttr(PtPvdId, "lFlag", GetIntStr(pvdIdL));
 	PvdIdSetAttr(PtPvdId, "lifetime", GetIntStr(pvdIdLifetime));
+	PvdIdSetAttr(PtPvdId, "interface", Stringify(JsonString(if_name)));
+	PvdIdSetAttr(PtPvdId, "srcAddress", Stringify(addr_str));
 
 	if (nDNSSL > 0) {
 		char	*pt = JsonArray(nDNSSL, TabDNSSL);
@@ -499,7 +505,7 @@ static void process(
 		return;
 	}
 
-	process_ra(msg, len, addr);
+	process_ra(msg, len, addr, if_name);
 }
 
 static int recv_ra(
