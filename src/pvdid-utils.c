@@ -143,6 +143,17 @@ char	*JsonString(char *str)
 	return((char *) pt0);
 }
 
+// Stringify : return a string enclosed in ". The returned string is
+// a static string, so only one call at a time is allowed
+char	*Stringify(char *s)
+{
+	static	char	lS[1024];
+
+	snprintf(lS, sizeof(lS) - 1, "\"%s\"", s);
+	lS[sizeof(lS) - 1] = '\0';
+	return(lS);
+}
+
 // JsonArray : convert an array of strings into its JSON strin representation
 // The returned string must be released by calling free()
 char	*JsonArray(int nStr, char **str)
