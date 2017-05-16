@@ -17,7 +17,7 @@ var http = require("http");
 var https = require("https");
 
 var Verbose = false;
-var DebugEnvironment = false;
+var DevelopmentEnvironment = false;
 var DefaultPvd = [];
 
 var allPvd = {};
@@ -184,7 +184,7 @@ function HandleOneLine(sock, msg) {
 		return;
 	}
 
-	// End of a multi-lines sections ?
+	// End of a multi-lines section ?
 	if (msg == "PVDID_END_MULTILINE") {
 		HandleMultiLine(sock, fullMsg);
 		multiLines  = false;
@@ -298,7 +298,7 @@ function RetrievePvdExtraInfo(pvdId) {
 		return;
 	}
 
-	if (DebugEnvironment) {
+	if (DevelopmentEnvironment) {
 		Url = "http://localhost:8000/" + pvdId;
 		protocol = http;
 	}
@@ -320,6 +320,7 @@ function RetrievePvdExtraInfo(pvdId) {
 
 				// Check if we have been aborted in between
 				if (allPvd[pvdId] == null || ! allPvd[pvdId].monitored) {
+					dlog(pvdId + " : no longer monitored. Ignoring http data");
 					return;
 				}
 				if ((J = GetJson(d.toString())) == null) {
@@ -337,7 +338,7 @@ function RetrievePvdExtraInfo(pvdId) {
 				// FIXME : check that the date format of the JSON
 				// and of the HTTP header are both recognized by
 				// the Date() parser of node
-				if ((nextDate = J.expires || res.headers.expires) != null) {
+				if ((nextDate = (J.expires || res.headers.expires)) != null) {
 					allPvd[pvdId].scheduleJob =
 						ScheduleAt(
 							nextDate,
@@ -364,8 +365,8 @@ process.argv.forEach(function(arg) {
 	if (arg == "-v" || arg == "--verbose") {
 		Verbose = true;
 	} else
-	if (arg == "-d" || arg == "--debug") {
-		DebugEnvironment = true;
+	if (arg == "-d" || arg == "--development") {
+		DevelopmentEnvironment = true;
 	} else
 	if (arg == "--pvd") {
 		InPvdList = true;
@@ -379,16 +380,16 @@ if (Help) {
 	console.log("pvdid-monitor [-h|--help] <option>*");
 	console.log("with option :");
 	console.log("\t-v|--verbose : outputs extra logs during operation");
-	console.log("\t-d|--debug : run in a simulation environment (local http server)");
+	console.log("\t-d|--development : run in a simulation environment (local http server)");
 	console.log("\t--pvd <pvdId>* : list of space separated pvdId FQDN");
 	console.log("\nIn addition to the PvD specified on the command line, the script");
 	console.log("monitors notifications from the pvdid-daemon to discover new PvD.");
 	console.log("\nThe list can be empty (and, in fact, should be left empty in a non");
-	console.log("debug environment).");
-	console.log("\nWhen running in a simulation environment (aka debug mode), requests to");
+	console.log("development environment).");
+	console.log("\nWhen running in a simulation environment (aka development mode), requests to");
 	console.log("retrieve the JSON description (pvd.json) are done via the");
 	console.log("http://localhost:8000/<pvdId> URL instead of https://<pvdId>/pvd.json");
-	console.log("For this to work, a local http server must be started locally of course");
+	console.log("For this to work, a local http server must be started of course");
 	process.exit(0);
 }
 
