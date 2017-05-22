@@ -112,6 +112,7 @@ static	t_PvdId	*lFirstPvdId = NULL;
 static	char	*lMyName = "";
 
 /* functions definitions ----------------------------------------- */
+static	int	NotifyPvdIdAttributes(t_PvdId *PtPvdId);
 static	int	RemoveSubscription(int ix, char *pvdId);
 
 static	int	usage(char *s)
@@ -465,7 +466,7 @@ static	t_PvdId	*RegisterPvdId(int pvdIdHandle, char *pvdId)
 // UnregisterPvdId : unregister a pvdid. We won't touch the subscription lists
 // (because the pvdId might reappear). We may want to send notification to
 // all clients (except control clients)
-static	int	UnregisterPvdId(char *pvdId)
+int	UnregisterPvdId(char *pvdId)
 {
 	int	i;
 	t_PvdId	*PtPvdId, *PtPvdIdPrev = NULL;
@@ -495,6 +496,37 @@ static	int	UnregisterPvdId(char *pvdId)
 		}
 		PtPvdIdPrev = PtPvdId;
 	}
+	return(0);
+}
+
+// DeleteAttribute : update (ie, replace)/create a given attribute for
+// a given pvdIdHandle
+static	int	DeleteAttribute(t_PvdId *PtPvdId, char *Key)
+{
+	int	i;
+
+	if (PtPvdId == NULL) {
+		DLOG("DeleteAttribute : unknown pvdId\n");
+		return(0);
+	}
+
+	DLOG("DeleteAttribute : pvdId = %s, Key = %s\n", PtPvdId->pvdId, Key);
+
+	for (i = 0; i < MAXATTRIBUTES; i++) {
+		char	*attrKey = PtPvdId->Attributes[i].Key;
+		char	*attrVal = PtPvdId->Attributes[i].Value;
+
+		if (attrKey != NULL && EQSTR(attrKey, Key)) {
+			if (attrVal != NULL) {
+				free(attrVal);
+			}
+			free(attrKey);
+			PtPvdId->Attributes[i].Key = NULL;
+			NotifyPvdIdAttributes(PtPvdId);
+			break;
+		}
+	}
+
 	return(0);
 }
 
@@ -986,6 +1018,15 @@ static	int	DispatchMessage(char *msg, int ix)
 			return(0);
 			
 		}
+
+		if (sscanf(
+			msg,
+			"PVDID_UNSET_ATTRIBUTE %[^ ] %[^\n]",
+			pvdId,
+			attributeName) == 2) {
+			return(DeleteAttribute(GetPvdId(pvdId), attributeName));
+		}
+
 		// PVDID_SET_ATTRIBUTE message are special : either the
 		// content fits on the line, either it is part of a
 		// multi-lines string. We only handle here the one-line

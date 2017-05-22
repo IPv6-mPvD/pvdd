@@ -120,14 +120,18 @@ function MonitorPvD(sock, pvdId, forceNow) {
 				allPvd[pvdId].monitored = true;
 				RetrievePvdExtraInfo(pvdId);
 			}
-		} else
-		if (allPvd[pvdId].monitored) {
-			// Currently been monitored => we must abort the
-			// monitoring (ie, if a https.get is in progress,
-			// just let it go, but if a timer is programmed,
-			// abort the timer)
-			allPvd[pvdId].monitored = false;
-			CancelTimers(pvdId);
+		}
+		else {
+			if (allPvd[pvdId].monitored) {
+				// Currently been monitored => we must abort the
+				// monitoring (ie, if a https.get is in progress,
+				// just let it go, but if a timer is programmed,
+				// abort the timer)
+				allPvd[pvdId].monitored = false;
+				CancelTimers(pvdId);
+			}
+			// In any case, we must delete the extraInfo field
+			UnsetAttribute(pvdId, "extraInfo");
 		}
 	}
 }
@@ -280,6 +284,14 @@ function SetAttribute(pvdId, attrName, attrValue) {
 						attrValue + "\n" +
 			"PVDID_END_MULTILINE\n" +
 			"PVDID_END_TRANSACTION " + pvdId + "\n");
+	}
+}
+
+// UnsetAttribute : send a unset attribute query to the daemon
+function UnsetAttribute(pvdId, attrName) {
+	if (controlSock != null) {
+		controlSock.write(
+			"PVDID_UNSET_ATTRIBUTE " + pvdId + " " + attrName + "\n");
 	}
 }
 
