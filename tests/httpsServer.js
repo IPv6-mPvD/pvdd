@@ -7,8 +7,11 @@ const http = require('http');
 
 var JSONresponse = {
 	"id" : 0,
-	"multi" : false,
-	"expire" : "today",
+	"met" : false,
+	"characteristics" : {
+		"maxThroughput" : { "down" : 2000000, "up" : 500000 },
+		"minLatency" : { "down" : 0.1, "up" : 1 }
+	},
 	"expires" : "2017-04-25T16:46:00Z"
 };
 
