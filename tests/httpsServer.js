@@ -9,8 +9,8 @@ var JSONresponse = {
 	"id" : 0,
 	"met" : false,
 	"characteristics" : {
-		"maxThroughput" : { "down" : 2000000, "up" : 500000 },
-		"minLatency" : { "down" : 0.1, "up" : 1 }
+		"maxThroughput" : { "down" : 2000000 },
+		"minLatency" : { "up" : 0.1 }
 	},
 	"expires" : "2017-04-25T16:46:00Z"
 };
