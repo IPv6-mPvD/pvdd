@@ -153,6 +153,8 @@ static void addrtostr(struct in6_addr const *addr, char *str, size_t str_size)
  * process_ra : we are mostly interested in gathering PVDID related information that
  * might be of interest for clients. We want to assign the whole RA to any PVDID
  * if such PVDID option is found in the RA. Othewise, the RA will be an PVDID orphan !
+ *
+ * We must take care of RA with nd_ra_router_lifetime == 0 (RA is becoming invalid)
  */
 static void process_ra(
 		unsigned char *msg,
@@ -183,9 +185,7 @@ static void process_ra(
 	pvdId[0] = '\0';
 
 	// The message begins with a struct nd_router_advert structure
-	// Since we are not interested at it (for now), we simply skip
-	// it
-	// struct nd_router_advert *radvert = (struct nd_router_advert *)msg;
+	struct nd_router_advert *radvert = (struct nd_router_advert *)msg;
 
 	len -= sizeof(struct nd_router_advert);
 
@@ -374,9 +374,16 @@ static void process_ra(
 	_DLOG(LOG_DEBUG, "processed RA\n");
 
 	// If we have seen a PvdId, we will update some fields of interest
+	// However, if the RA is becoming invalid, we must notify that the PVD
+	// has disappeared !
 	if (pvdId[0] == '\0') {
 		// No PvD option defined in this RA
 		goto Exit;
+	}
+
+	if (radvert->nd_ra_router_lifetime == 0) {
+		UnregisterPvdId(pvdId);
+		goto Exit;	// Release allocated structures
 	}
 
 	if ((PtPvdId = PvdIdBeginTransaction(pvdId)) == NULL) {
