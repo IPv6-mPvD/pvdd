@@ -28,11 +28,8 @@ function dlog(s) {
 	}
 }
 
-function ComplainConnection(Port, err) {
-	console.log(
-		"Can not connect to pvdid-daemon on port " +
-		Port +
-		" (" + err.message + ")");
+function ComplainConnection(Port, msg, err) {
+	console.log(msg + "@pvdid-daemon:" + Port + ": " + err.code);
 }
 
 // CancelTimers : cancels all pending timers attached to a pvd
@@ -90,6 +87,7 @@ function ControlSockInit(sock) {
 }
 
 var controlSock = null;
+var controlSucceeded = true;
 
 function controlConnection(Port) {
 	// Perform the initial connection, and automatic reconnection
@@ -97,11 +95,15 @@ function controlConnection(Port) {
 	if (controlSock == null) {
 		controlSock = Net.connect({ host : "0.0.0.0", port : Port });
 		controlSock.on("connect", function() {
+			controlSucceeded = true;
 			ControlSockInit(controlSock);
 			console.log("Control connection established with pvdid-daemon");
 		});
 		controlSock.on("error", function(err) {
-			ComplainConnection(Port, err);
+			if (controlSucceeded) {
+				ComplainConnection(Port, "control socket", err);
+			}
+			controlSucceeded = false;
 			controlSock = null;
 		});
 	}
@@ -244,6 +246,7 @@ function regularSockInit(sock) {
 }
 
 var regularSock = null;
+var regularSucceeded = true;
 
 function regularConnection(Port) {
 	// Perform the initial connection, and automatic reconnection
@@ -251,11 +254,15 @@ function regularConnection(Port) {
 	if (regularSock == null) {
 		regularSock = Net.connect({ host : "0.0.0.0", port : Port });
 		regularSock.on("connect", function() {
+			regularSucceeded = true;
 			regularSockInit(regularSock);
 			console.log("Regular connection established with pvdid-daemon");
 		});
 		regularSock.on("error", function(err) {
-			ComplainConnection(Port, err);
+			if (regularSucceeded) {
+				ComplainConnection(Port, "regular socket", err);
+			}
+			regularSucceeded = false;
 			regularSock = null;
 		});
 		regularSock.on("data", function(d) {
@@ -303,6 +310,13 @@ function ScheduleAt(DateStr, f, args) {
 	var j = new schedule.scheduleJob(new Date(DateStr), function() { f(args); });
 }
 
+function ScheduleRetry(pvdId) {
+	if (allPvd[pvdId] != null) {
+		allPvd[pvdId].retryTimeout =
+			setTimeout(RetrievePvdExtraInfo, 5 * 1000, pvdId);
+	}
+}
+
 function RetrievePvdExtraInfo(pvdId) {
 	var Url, protocol;
 
@@ -336,6 +350,7 @@ function RetrievePvdExtraInfo(pvdId) {
 					return;
 				}
 				if ((J = GetJson(d.toString())) == null) {
+					ScheduleRetry(pvdId);
 					return;
 				}
 
@@ -361,8 +376,7 @@ function RetrievePvdExtraInfo(pvdId) {
 		}
 	).on('error', function(err) {
 		console.log("Can not connect to " + Url + " (" + err.message + ")");
-		// We must retry. Schedule a retry in 60 seconds
-		allPvd[pvdId].retryTimeout = setTimeout(RetrievePvdExtraInfo, 60 * 1000, pvdId);
+		ScheduleRetry(pvdId);
 	});
 }
 
