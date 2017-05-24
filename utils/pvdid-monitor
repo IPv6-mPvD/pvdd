@@ -35,12 +35,20 @@ function ComplainConnection(Port, msg, err) {
 // CancelTimers : cancels all pending timers attached to a pvd
 function CancelTimers(pvdId) {
 	if (allPvd[pvdId].scheduleJob != null) {
-		allPvd[pvdId].scheduleJob.cancel();
+		try {
+			allPvd[pvdId].scheduleJob.cancel();
+		}
+		catch (e) {
+		}
 		allPvd[pvdId].scheduleJob = null;
 	}
 
 	if (allPvd[pvdId].retryTimeout != null) {
-		clearTimeout(allPvd[pvdId].retryTimeout);
+		try {
+			clearTimeout(allPvd[pvdId].retryTimeout);
+		}
+		catch (e) {
+		}
 		allPvd[pvdId].retryTimeout = null;
 	}
 }
