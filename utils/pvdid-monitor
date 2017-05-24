@@ -76,6 +76,17 @@ function DelPvD(pvdId) {
 	}
 }
 
+// DelAllPvD : unregisters all pvd. This is called when the connection is
+// lost with the daemon
+function DelAllPvD() {
+	for (var key in allPvd) {
+		CancelTimers(key);
+	}
+	allPvd = {};	// Forces deletion of all entries
+
+	dlog("allPvd reset to empty");
+}
+
 function GetJson(s) {
 	try {
 		return(JSON.parse(s));
@@ -270,6 +281,7 @@ function regularConnection(Port) {
 		});
 		regularSock.on("error", function(err) {
 			if (regularSucceeded) {
+				DelAllPvD();
 				ComplainConnection(Port, "regular socket", err);
 			}
 			regularSucceeded = false;
