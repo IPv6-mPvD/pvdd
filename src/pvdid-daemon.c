@@ -499,8 +499,7 @@ int	UnregisterPvdId(char *pvdId)
 	return(0);
 }
 
-// DeleteAttribute : update (ie, replace)/create a given attribute for
-// a given pvdIdHandle
+// DeleteAttribute : delete a given attribute for a given pvd
 static	int	DeleteAttribute(t_PvdId *PtPvdId, char *Key)
 {
 	int	i;
