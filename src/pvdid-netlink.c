@@ -382,6 +382,7 @@ static void process_ra(
 	}
 
 	if (radvert->nd_ra_router_lifetime == 0) {
+		DLOG("RA becoming invalidated. Unregistering\n");
 		UnregisterPvdId(pvdId);
 		goto Exit;	// Release allocated structures
 	}
