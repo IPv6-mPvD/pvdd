@@ -307,7 +307,7 @@ function UnsetAttribute(pvdId, attrName) {
 // with GET requests at the same time
 function ScheduleAt(DateStr, f, args) {
 	dlog("ScheduleAt at " + DateStr + " programmed");
-	var j = new schedule.scheduleJob(new Date(DateStr), function() { f(args); });
+	return(new schedule.scheduleJob(new Date(DateStr), function() { f(args); }));
 }
 
 function ScheduleRetry(pvdId) {
