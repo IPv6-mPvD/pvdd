@@ -389,10 +389,12 @@ static	void	NotifyPvdIdList(void)
 	msg[sizeof(msg) - 1] = '\0';
 
 	// FIXME : check for overflow
-	sprintf(msg, "PVDID_LIST");
+	sprintf(msg, "PVDID_LIST ");	// Important : there must always be a ' '
 	for (PtPvdId = lFirstPvdId; PtPvdId != NULL; PtPvdId = PtPvdId->next) {
-		strcat(msg, " ");
 		strcat(msg, PtPvdId->pvdId);
+		if (PtPvdId->next != NULL) {
+			strcat(msg, " ");
+		}
 	}
 	strcat(msg, "\n");
 
