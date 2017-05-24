@@ -369,6 +369,7 @@ static	void	NotifyPvdIdState(char *pvdId, int Mask)
 			continue;
 		}
 		if ((pt->SubscriptionMask & Mask) != 0) {
+			DLOG("NotifyPvdIdState : sending on socket %d msg %s", pt->s, msg);
 			if (! WriteString(pt->s, msg, pt->type == SOCKET_BINARY)) {
 				ReleaseClient(i);
 			}
@@ -400,6 +401,7 @@ static	void	NotifyPvdIdList(void)
 			continue;
 		}
 		if ((pt->SubscriptionMask & SUBSCRIPTION_LIST) != 0) {
+			DLOG("NotifyPvdIdList : sending on socket %d msg %s", pt->s, msg);
 			if (! WriteString(pt->s, msg, pt->type == SOCKET_BINARY)) {
 				ReleaseClient(i);
 			}
