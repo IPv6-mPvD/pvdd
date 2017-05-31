@@ -7,7 +7,7 @@ const http = require('http');
 
 var JSONresponse = {
 	"id" : 0,
-	"met" : false,
+	"metered" : false,
 	"characteristics" : {
 		"maxThroughput" : { "down" : 2000000 },
 		"minLatency" : { "up" : 0.1 }
@@ -16,18 +16,25 @@ var JSONresponse = {
 };
 
 http.createServer(function(req, res) {
-	JSONresponse.name = req.url.slice(1);
 	res.writeHead(200);
+	JSONresponse.name = req.url.slice(1);
 	res.end(JSON.stringify(JSONresponse, null, 12) + "\n");
 }).listen(8000);
 
 // Update the expiration date and the id every 2 minutes
-var id = 0;
-function UpdateJson() {
-	var now = new Date(Date.now() + 120 * 1000);
+// To avoid race conditions, we will update the expiration
+// date 5 seconds before its actual expiration date (so,
+// when clients will request the new JSON, its expires
+// date will have been updated 5 seconds before, which
+// should be long enough for the http server to have
+// updated it)
+const PERIOD = 120 * 1000;
+
+function UpdateJson(id) {
+	var now = new Date(Date.now() + PERIOD + 5);
 	JSONresponse.expires = now.toISOString();
-	JSONresponse.id = id++;
-	setTimeout(UpdateJson, 120 * 1000);
+	JSONresponse.id = id;
+	setTimeout(UpdateJson, PERIOD, id + 1);
 }
 
-UpdateJson();
+UpdateJson(0);
