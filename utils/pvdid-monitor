@@ -28,6 +28,13 @@ function dlog(s) {
 	}
 }
 
+function tlog(s) {
+	if (Verbose) {
+		var now = new Date(Date.now());
+		console.log(now.toISOString() + " : " + s);
+	}
+}
+
 function ComplainConnection(Port, msg, err) {
 	console.log(msg + "@pvdid-daemon:" + Port + ": " + err.code);
 }
@@ -324,19 +331,33 @@ function UnsetAttribute(pvdId, attrName) {
 	}
 }
 
-// DateStr : ISO8601 format. It should be recognized by Date.parse()
-// We should add a random delay to avoid flooding the https server
-// with GET requests at the same time
-function ScheduleAt(DateStr, f, args) {
-	dlog("ScheduleAt at " + DateStr + " programmed");
-	return(new schedule.scheduleJob(new Date(DateStr), function() { f(args); }));
-}
-
 function ScheduleRetry(pvdId) {
 	if (allPvd[pvdId] != null) {
+		tlog("Setting timer for http fetch retry for " + pvdId);
 		allPvd[pvdId].retryTimeout =
 			setTimeout(RetrievePvdExtraInfo, 5 * 1000, pvdId);
 	}
+}
+
+// DateStr : ISO8601 format. It should be recognized by Date.parse()
+// We should add a random delay to avoid flooding the https server
+// with GET requests at the same time. We should also make sure to
+// not query the http server at the exact time it says the data is
+// expiring (we might query data before the server actually has
+// updated it [race condition] the expires field for the next
+// expiration date)
+// So, if the expiration date is past or current, we will perform
+// a retry 5 seconds later (when this situation happens, scheduleJob()
+// returns a job == {}, hence j.name == null)
+function ScheduleAt(pvdId, DateStr, f, args) {
+	tlog("ScheduleAt at " + DateStr + " programmed for " + pvdId);
+	var j = new schedule.scheduleJob(new Date(DateStr), function() { f(args); });
+	tlog("ScheduleAt : jobs = " + JSON.stringify(j));
+	if (j.name == null) {
+		ScheduleRetry(pvdId);
+		return(null);
+	}
+	return(j);
 }
 
 function RetrievePvdExtraInfo(pvdId) {
@@ -355,7 +376,7 @@ function RetrievePvdExtraInfo(pvdId) {
 		protocol = https;
 	}
 
-	dlog("Retrieving url " + Url);
+	tlog("Retrieving url " + Url);
 
 	CancelTimers(pvdId);
 
@@ -363,7 +384,7 @@ function RetrievePvdExtraInfo(pvdId) {
 		Url,
 		function(res) {
 			res.on('data', function(d) {
-				dlog("Data received : " + d);
+				tlog("Data received : " + d);
 				// TODO : check the status (200, 300-400, 40x)
 
 				// Check if we have been aborted in between
@@ -380,7 +401,7 @@ function RetrievePvdExtraInfo(pvdId) {
 				// the stringified conversion of the JSON object
 				// to send something cleaner to the daemon
 				SetAttribute(pvdId, "extraInfo", JSON.stringify(J, null, 12));
-				dlog("PvdId : " + pvdId + " expires = " + J.expires);
+				tlog("PvdId : " + pvdId + " expires = " + J.expires);
 
 				// Schedule if needed the retrieval of the JSON based
 				// on the 'expires' field
@@ -390,6 +411,7 @@ function RetrievePvdExtraInfo(pvdId) {
 				if ((nextDate = (J.expires || res.headers.expires)) != null) {
 					allPvd[pvdId].scheduleJob =
 						ScheduleAt(
+							pvdId,
 							nextDate,
 							RetrievePvdExtraInfo,
 							pvdId);
