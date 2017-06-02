@@ -156,10 +156,10 @@ static void addrtostr(struct in6_addr const *addr, char *str, size_t str_size)
  *
  * We must take care of RA with nd_ra_router_lifetime == 0 (RA is becoming invalid)
  */
-static void process_ra(
-		unsigned char *msg,
+void process_ra(unsigned char *msg,
 		int len,
 		struct sockaddr_in6 *addr,
+		struct in6_addr *sin6_addr,
 		char *if_name)
 {
 	int i;
@@ -180,7 +180,9 @@ static void process_ra(
 	}	TabPrefix[32];
 	int nPrefix = 0;
 
-	addrtostr(&addr->sin6_addr, addr_str, sizeof(addr_str));
+	addrtostr(
+		addr != NULL ? &addr->sin6_addr : sin6_addr,
+		addr_str, sizeof(addr_str));
 
 	pvdId[0] = '\0';
 
@@ -202,6 +204,8 @@ static void process_ra(
 
 		int optlen = (opt_str[1] << 3);
 
+		// DLOG("Option len = %d, total len = %d\n", optlen, len);
+
 		if (optlen == 0) {
 			_DLOG(LOG_ERR, "zero length option in RA from %s\n", addr_str);
 			break;
@@ -219,7 +223,6 @@ static void process_ra(
 				return;
 
 			DLOG("ND_OPT_MTU present in RA (%d)\n", ntohl(mtu->nd_opt_mtu_mtu));
-
 
 			break;
 		}
@@ -513,7 +516,7 @@ static void process(
 		return;
 	}
 
-	process_ra(msg, len, addr, if_name);
+	process_ra(msg, len, addr, NULL, if_name);
 }
 
 static int recv_ra(

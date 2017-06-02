@@ -44,6 +44,7 @@
 #include <netdb.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <net/if.h>
 
 #include "pvdid-defs.h"
 #include "pvdid-daemon.h"
@@ -1196,6 +1197,7 @@ int	main(int argc, char **argv)
 	int		sockIcmpv6;
 	int		serverSock;
 	struct pvd_list	pvl;	/* careful : this can be quite big */
+	struct ra_list	*ral;
 
 	lMyName = basename(strdup(argv[0]));	// valgrind : leak on strdup
 
@@ -1261,9 +1263,13 @@ int	main(int argc, char **argv)
 	 * An error can occur if the kernel is not recognizing
 	 * the command (ENOPROTOOPT)
 	 */
+#if	0
 	pvl.npvd = MAXPVD;
 	if (pvd_get_list(&pvl) != -1) {
 		struct net_pvd_attribute *pa;
+
+		DLOG("%d pvd retrieved from kernel\n", pvl.npvd);
+
 		for (i = 0, pa = pvl.pvds; i < pvl.npvd; i++, pa++) {
 			t_PvdId	*PtPvdId = RegisterPvdId(pa->index, pa->name);
 
@@ -1282,6 +1288,30 @@ int	main(int argc, char **argv)
 			PvdIdSetAttr(PtPvdId, "lifetime", GetIntStr(pa->expires));
 			PvdIdEndTransaction(PtPvdId);
 		}
+	}
+	else {
+		if (lFlagVerbose) {
+			perror("pvd_get_list");
+		}
+	}
+#endif
+
+	if ((ral = ralist_alloc(16)) != NULL) {
+		if (kernel_get_ralist(ral) != -1) {
+			for (i = 0; i < ral->nra; i++) {
+				char if_namebuf[IF_NAMESIZE] = {""};
+				process_ra(
+					ral->array[i].ra, 
+					ral->array[i].ra_size,
+					NULL,
+					&ral->array[i].saddr,
+					if_indextoname(ral->array[i].ifindex, if_namebuf));
+			}
+		}
+		else {
+			perror("kernel_get_ralist");
+		}
+		ralist_release(ral);
 	}
 
 	/*
