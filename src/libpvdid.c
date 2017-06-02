@@ -881,4 +881,74 @@ int	pvd_get_list(struct pvd_list *pvl)
 	return(rc);
 }
 
+int	kernel_get_pvdlist(struct pvd_list *pvl)
+{
+	return(pvd_get_list(pvl));
+}
+
+
+/*
+ * Tricky part to take rid of alignement issues
+ * We define a ra_list structure with a well known
+ * array size to be able to extrapolate the exact
+ * alignment of any sized array
+ *
+ * For now, we suppose a max MTU of 1500 (to estimate the
+ * worst case needed size of the buffer)
+ */
+struct ra_list16 {
+	_RALIST_HEADER
+	struct ra_buffer array[16];
+	char	_buffer[0];
+};
+
+struct ra_list	*ralist_alloc(int max_ras)
+{
+	struct ra_list16	ref16;
+	int	referenceArraySize = ref16._buffer - (char *) ref16.array;
+	int	headerSize = (char *) ref16.array - (char *) &ref16;
+
+	int	neededSize =
+			headerSize +
+			referenceArraySize * max_ras / 16 +
+			1500 * max_ras;
+	struct ra_list	*ral;
+
+	if ((ral = (struct ra_list *) malloc(neededSize)) == NULL) {
+		return(NULL);
+	}
+
+	memset(ral, 0, neededSize);
+
+	ral->size = neededSize;
+	ral->buffer_size = 1500 * max_ras;
+	ral->max_ras = max_ras;
+	ral->nra = 0;
+	ral->buffer = (char *) ral + headerSize + referenceArraySize * max_ras / 16;
+
+	return(ral);
+}
+
+void	ralist_release(struct ra_list *ral)
+{
+	free(ral);
+}
+
+int	kernel_get_ralist(struct ra_list *ral)
+{
+	int		s;
+	int		rc;
+	socklen_t	optlen = sizeof(struct ra_list *);
+
+	if ((s = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+		return(-1);
+	}
+
+	rc = getsockopt(s, SOL_SOCKET, SO_GETRALIST, &ral, &optlen);
+
+	close(s);
+
+	return(rc);
+}
+
 /* ex: set ts=8 noexpandtab wrap: */

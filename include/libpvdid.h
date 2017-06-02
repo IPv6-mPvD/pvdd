@@ -81,6 +81,36 @@ struct pvd_list {
 
 #endif	/* SO_GETPVDINFO */
 
+#ifndef	SO_GETRALIST
+#define	SO_GETRALIST	57
+
+#include <netinet/ip6.h>
+
+/*
+ * For SO_GETRALIST
+ */
+#define	_RALIST_HEADER \
+	int	size;		/* total structure size */\
+	int	buffer_size;	/* depends on max_ras */\
+	char	*buffer;	/* allocated */\
+	int	nra;		/* output */\
+	int	max_ras;
+
+struct ra_buffer {
+	int		ra_size;
+	unsigned char	*ra;
+	int		ifindex;
+	struct in6_addr	saddr;
+};
+
+struct ra_list {
+	_RALIST_HEADER
+	struct ra_buffer array[0];	/* variable size : [max_ras] */
+	/* array will be followed by a buffer */
+};
+
+#endif	/* SO_GETRALIST */
+
 /*
  * Return codes
  */
@@ -182,6 +212,8 @@ extern	int		pvdid_get_message(t_pvd_connection *conn, int *multiLines, char **ms
 extern	int	sock_bind_to_pvd(int s, char *pvdname);
 extern	int	sock_get_bound_pvd(int s, char *pvdname);
 extern	int	pvd_get_list(struct pvd_list *pvl);
-
+extern	struct ra_list	*ralist_alloc(int max_ras);
+extern	void	ralist_release(struct ra_list *ral);
+extern	int	kernel_get_ralist(struct ra_list *ral);
 
 #endif		/* LIBPVDID_H */
