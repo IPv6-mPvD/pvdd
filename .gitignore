@@ -8,3 +8,5 @@ pvdid-daemon
 sockonnekt
 obj
 node_modules
+pvd-bound-socks
+pvd-bound-socks.o
