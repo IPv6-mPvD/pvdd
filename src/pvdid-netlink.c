@@ -164,7 +164,7 @@ void process_ra(unsigned char *msg,
 {
 	int i;
 	char addr_str[INET6_ADDRSTRLEN];
-	char pvdId[PVDIDNAMESIZ];
+	char pvdId[PVDNAMSIZ];
 	int pvdIdSeq = -1;
 	int pvdIdH = 0;
 	int pvdIdL = 0;

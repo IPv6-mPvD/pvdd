@@ -858,7 +858,7 @@ static	int	SendAllAttributes(int s, int binary, char *pvdId)
 static	int	HandleMultiLinesMessage(int ix)
 {
 	char	attributeName[1024];
-	char	pvdId[PVDIDNAMESIZ];
+	char	pvdId[PVDNAMSIZ];
 	char	*pt;
 	int	rc;
 	int	l;
@@ -923,7 +923,7 @@ static	int	DispatchMessage(char *msg, int ix)
 {
 	char	attributeName[1024];
 	char	attributeValue[4096];
-	char	pvdId[PVDIDNAMESIZ];	// be careful with overflow
+	char	pvdId[PVDNAMSIZ];	// be careful with overflow
 	int	pvdIdHandle;
 	int	s = lTabClients[ix].s;
 	int	type = lTabClients[ix].type;

@@ -840,8 +840,8 @@ int	sock_bind_to_pvd(int s, char *pvdname)
 
 	btp.scope = PVD_BIND_SCOPE_SOCKET;
 	btp.npvd = 1;
-	btp.pvdnames[0][PVDIDNAMESIZ - 1] = '\0';
-	strncpy(btp.pvdnames[0], pvdname, PVDIDNAMESIZ- 1);
+	btp.pvdnames[0][PVDNAMSIZ - 1] = '\0';
+	strncpy(btp.pvdnames[0], pvdname, PVDNAMSIZ- 1);
 
 	return(setsockopt(s, SOL_SOCKET, SO_BINDTOPVD, &pbtp, sizeof(pbtp)));
 }
@@ -856,8 +856,8 @@ int	sock_get_bound_pvd(int s, char *pvdname)
 	btp.npvd = 1;
 	if ((rc = getsockopt(s, SOL_SOCKET, SO_BINDTOPVD, &pbtp, &optlen)) == 0) {
 		if (btp.npvd == 1) {
-			strncpy(pvdname, btp.pvdnames[0], PVDIDNAMESIZ - 1);
-			pvdname[PVDIDNAMESIZ - 1] = '\0';
+			strncpy(pvdname, btp.pvdnames[0], PVDNAMSIZ - 1);
+			pvdname[PVDNAMSIZ - 1] = '\0';
 		}
 		return(btp.npvd);
 	}

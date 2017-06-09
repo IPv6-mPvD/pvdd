@@ -14,7 +14,9 @@
 
 #define	PVDID_MAX_MSG_SIZE	2048
 
-#define	PVDIDNAMESIZ	1024
+#ifndef	PVDNAMSIZ
+#define	PVDNAMSIZ	1024
+#endif
 
 #endif	/* PVDID_DEFS_H */
 
