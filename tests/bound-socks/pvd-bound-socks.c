@@ -25,6 +25,7 @@ static	void	usage(FILE *fo)
 
 int	main(int argc, char **argv)
 {
+	int	rc;
 	int	i;
 	int	s;
 	char	*PvdName = NULL;
@@ -54,13 +55,17 @@ int	main(int argc, char **argv)
 		return(1);
 	}
 
-	if (sock_get_bound_pvd(s, BoundPvdName) == -1) {
+	rc = sock_get_bound_pvd(s, BoundPvdName);
+
+	if (rc == -1) {
 		fprintf(stderr, "sock_bind_to_pvd(%s) : %s\n", PvdName, strerror(errno));
 		close(s);
 		return(1);
 	}
 
-	printf("Bound PvD : %s\n", BoundPvdName);
+	if (rc > 0) {
+		printf("Bound PvD : %s\n", BoundPvdName);
+	}
 
 	close(s);
 
