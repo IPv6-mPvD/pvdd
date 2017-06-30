@@ -46,10 +46,19 @@
 #include <sys/socket.h>
 #include <net/if.h>
 
+#include "config.h"
+
+#ifdef	HAS_PVDUSER
+#include <linux/rtnetlink.h>
+#else
+#include "linux/rtnetlink.h"
+#endif
+
 #include "pvdid-defs.h"
 #include "pvdid-daemon.h"
 #include "pvdid-utils.h"
 #include "pvdid-netlink.h"
+#include "pvdid-rtnetlink.h"
 
 #include "libpvdid.h"
 
@@ -101,6 +110,25 @@ typedef	struct t_PvdId {
 	int	pvdIdHandle;
 	int	dirty;
 	t_PvdAttribute Attributes[MAXATTRIBUTES];
+
+	/*
+	 * Special case for the RDNSS/DNSSL options :
+	 * they can be provided by 2 different channels and must
+	 * be consolidated (user and kernel channels) to create
+	 * the rdnss and dnssl attributes
+	 */
+	int	nKernelRdnss;
+	struct in6_addr	KernelRdnss[MAXRDNSSPERPVD];
+
+	int	nUserRdnss;
+	struct in6_addr	UserRdnss[MAXRDNSSPERPVD];
+
+	int	nKernelDnssl;
+	char	*KernelDnssl[MAXDNSSLPERPVD];
+
+	int	nUserDnssl;
+	char	*UserDnssl[MAXDNSSLPERPVD];
+
 	struct t_PvdId	*next;
 }	t_PvdId;
 
@@ -126,6 +154,7 @@ static	int	usage(char *s)
 	fprintf(fo, "%s [-h|--help] <option>*\n", lMyName);
 	fprintf(fo, "where option :\n");
 	fprintf(fo, "\t-v|--verbose\n");
+	fprintf(fo, "\t-r|--use-cached-ra : retrieve the initial PvD list via a kernel cache\n");
 	fprintf(fo,
 		"\t-p|--port <#> : port number for clients requests (default %d)\n",
 		DEFAULT_PVDID_PORT);
@@ -135,9 +164,162 @@ static	int	usage(char *s)
 		"\n"
 		"Clients using the companion library can set the PVDID_PORT environment\n"
 		"variable to specify another port than the default one\n");
+	fprintf(fo,
+		"\n"
+		"Note that the kernel mechanism which caches the latest received RAs is not an\n"
+		"accurate way of having an exact picture of the current addresses/routes/user\n"
+		"options\n");
+
 
 	return(s == NULL ? 0 : 1);
 }
+
+// PvdIdRdnssToJsonArray : aggregate the kernel and user RDNSS fields
+// and buid a JSON string for this array of in6_addr values
+// The returned string must be released by calling free()
+char	*PvdIdRdnssToJsonArray(t_PvdId *PtPvdId)
+{
+	int 		nAddr;
+	struct in6_addr Addresses[MAXRDNSSPERPVD * 2];
+	int		i, j;
+	t_StringBuffer	SB;
+	char		sAddr[INET6_ADDRSTRLEN];
+
+	nAddr = 0;
+	for (i = 0; i < PtPvdId->nKernelRdnss; i++) {
+		for (j = 0; j < nAddr; j++) {
+			if (memcmp(
+				&Addresses[j],
+				&PtPvdId->KernelRdnss[i],
+				sizeof(Addresses[j])) == 0) {
+				break;
+			}
+		}
+		if (j >= nAddr && nAddr < DIM(Addresses)) {
+			Addresses[nAddr++] = PtPvdId->KernelRdnss[i];
+		}
+	}
+
+	for (i = 0; i < PtPvdId->nUserRdnss; i++) {
+		for (j = 0; j < nAddr; j++) {
+			if (memcmp(
+				&Addresses[j],
+				&PtPvdId->UserRdnss[i],
+				sizeof(Addresses[j])) == 0) {
+				break;
+			}
+		}
+		if (j >= nAddr && nAddr < DIM(Addresses)) {
+			Addresses[nAddr++] = PtPvdId->UserRdnss[i];
+		}
+	}
+
+	SBInit(&SB);
+
+	SBAddString(&SB, "[");
+	for (i = 0; i < nAddr; i++) {
+		SBAddString(
+			&SB,
+			"\"%s\"",
+			addrtostr(&Addresses[i], sAddr, sizeof(sAddr)));
+		SBAddString(&SB, i == nAddr - 1 ? "" : ", ");
+	}
+	SBAddString(&SB, "]");
+
+	return(SB.String);
+}
+
+// PvdIdDnsslToJsonArray : aggregate the kernel and user RDNSS fields
+// and buid a JSON string for this array of in6_addr values
+// The returned string must be released by calling free()
+char	*PvdIdDnsslToJsonArray(t_PvdId *PtPvdId)
+{
+	int 		nDnssl;
+	char		*Dnssl[MAXDNSSLPERPVD * 2];
+	int		i, j;
+
+	nDnssl = 0;
+	for (i = 0; i < PtPvdId->nKernelDnssl; i++) {
+		for (j = 0; j < nDnssl; j++) {
+			if (strcmp(Dnssl[j], PtPvdId->KernelDnssl[i]) == 0) {
+				break;
+			}
+		}
+		if (j >= nDnssl && nDnssl < DIM(Dnssl)) {
+			Dnssl[nDnssl++] = PtPvdId->KernelDnssl[i];
+		}
+	}
+
+	for (i = 0; i < PtPvdId->nUserDnssl; i++) {
+		for (j = 0; j < nDnssl; j++) {
+			if (strcmp(Dnssl[j], PtPvdId->UserDnssl[i]) == 0) {
+				break;
+			}
+		}
+		if (j >= nDnssl && nDnssl < DIM(Dnssl)) {
+			Dnssl[nDnssl++] = PtPvdId->UserDnssl[i];
+		}
+	}
+
+	return(JsonArray(nDnssl, Dnssl));
+}
+
+// In6AddrToJsonArray : convert an array of in6_addr into its JSON string representation
+// The returned string must be released by calling free()
+char	*In6AddrToJsonArray(int nAddr, struct in6_addr *Addresses, int *PrefixesLen)
+{
+	int		i;
+	t_StringBuffer	SB;
+	char		sAddr[INET6_ADDRSTRLEN];
+
+	SBInit(&SB);
+
+	SBAddString(&SB, "[");
+	for (i = 0; i < nAddr; i++) {
+		SBAddString(&SB, "\n\t{");
+		SBAddString(
+			&SB,
+			"\"address\" : \"%s\", ",
+			addrtostr(&Addresses[i], sAddr, sizeof(sAddr)));
+		SBAddString(&SB, "\"length\" : %d }", PrefixesLen[i]);
+		SBAddString(&SB, i == nAddr - 1 ? "\n" : ",");
+	}
+	SBAddString(&SB, "]");
+
+	return(SB.String);
+}
+
+// In6RoutesToJsonArray : convert an array of in6_addr into its JSON string representation
+// The returned string must be released by calling free()
+char	*In6RoutesToJsonArray(int nRoutes, struct net_pvd_route *Routes)
+{
+	int		i;
+	t_StringBuffer	SB;
+	char		sAddr[INET6_ADDRSTRLEN];
+
+	SBInit(&SB);
+
+	SBAddString(&SB, "[");
+	for (i = 0; i < nRoutes; i++) {
+		struct net_pvd_route *rt = &Routes[i];
+
+		SBAddString(&SB, "\n\t{");
+		SBAddString(
+			&SB,
+			"\"dst\" : \"%s\", ",
+			addrtostr(&rt->dst, sAddr, sizeof(sAddr)));
+		SBAddString(
+			&SB,
+			"\"gateway\" : \"%s\", ",
+			addrtostr(&rt->gateway, sAddr, sizeof(sAddr)));
+		SBAddString(&SB, "\"dev\" : \"%s\" }", JsonString(rt->dev_name));
+		SBAddString(&SB, i == nRoutes - 1 ? "\n" : ",");
+	}
+	SBAddString(&SB, "]");
+
+	return(SB.String);
+}
+
 
 // CreateServerSocket : create a socket for use by the clients
 static	int	CreateServerSocket(int Port)
@@ -412,6 +594,21 @@ static	void	NotifyPvdIdList(void)
 	}
 }
 
+/*
+ * GetPvdIdByName : given a pvd name, retrieve its t_PvdId
+ */
+static	t_PvdId *GetPvdIdByName(char *pvdId)
+{
+	t_PvdId	*PtPvdId;
+
+	for (PtPvdId = lFirstPvdId; PtPvdId != NULL; PtPvdId = PtPvdId->next) {
+		if (EQSTR(PtPvdId->pvdId, pvdId)) {
+			return(PtPvdId);
+		}
+	}
+	return(NULL);
+}
+
 // RegisterPvdId : register a new pvdid. It should normally come from
 // the kernel notifications, but, for debug purpose, might also be
 // provided by clients on control sockets
@@ -436,6 +633,8 @@ static	t_PvdId	*RegisterPvdId(int pvdIdHandle, char *pvdId)
 		DLOG("allocating pvdid : memory overflow\n");
 		return(NULL);
 	}
+	memset(PtPvdId, 0, sizeof(*PtPvdId));
+
 	if ((tmpStr = alloca(strlen(pvdId) * 3 + 2)) == NULL) {
 		free(PtPvdId);
 		DLOG("allocating pvdid : memory overflow\n");
@@ -447,6 +646,10 @@ static	t_PvdId	*RegisterPvdId(int pvdIdHandle, char *pvdId)
 	PtPvdId->dirty = false;
 	memset(PtPvdId->Attributes, 0, sizeof(PtPvdId->Attributes));
 
+	/*
+	 * Create the set of well known attributes (representing the
+	 * various fields of the IETF definition of a PvD
+	 */
 	sprintf(tmpStr, "\"%s\"", JsonString(pvdId));
 	PvdIdSetAttr(PtPvdId, "pvdId", tmpStr);
 	sprintf(tmpStr, "%d", PtPvdId->pvdIdHandle);
@@ -643,6 +846,11 @@ static	int	SendMultiLines(int s, int binary, char *Prefix, ...)
 	va_list ap;
 	char	*pt;
 
+	/*
+	 * Header of the message :
+	 * + length in case of binary connection
+	 * + PVDID_BEGIN_MULTILINE string otherwise
+	 */
 	if (binary) {
 		int	len = strlen(Prefix);
 
@@ -663,6 +871,9 @@ static	int	SendMultiLines(int s, int binary, char *Prefix, ...)
 		}
 	}
 
+	/*
+	 * The payload itself
+	 */
 	if (! WriteString(s, Prefix, false)) {
 		return(-1);
 	}
@@ -675,6 +886,11 @@ static	int	SendMultiLines(int s, int binary, char *Prefix, ...)
 	}
 	va_end(ap);
 
+	/*
+	 * The trailer of the message :
+	 * + nothing in case of binary connection
+	 * + PVDID_END_MULTILINE string otherwise
+	 */
 	if (! binary) {
 		if (! WriteString(s, "PVDID_END_MULTILINE\n", false)) {
 			return(-1);
@@ -1173,6 +1389,198 @@ static	int	HandleMessage(int ix)
 	return(0);
 }
 
+static	int	RegisterPvdAttributes(struct net_pvd_attribute *pa)
+{
+	int i;
+	char *pt;
+	t_PvdId	*PtPvdId = RegisterPvdId(pa->index, pa->name);
+
+	if (PtPvdId == NULL) {
+		// Fatal error
+		fprintf(stderr, "Can not register pvd %s\n", pa->name);
+		return(-1);
+	}
+	PvdIdBeginTransaction(pa->name);
+	PvdIdSetAttr(
+		PtPvdId,
+		"sequenceNumber",
+		GetIntStr(pa->sequence_number));
+	PvdIdSetAttr(PtPvdId, "hFlag", GetIntStr(pa->h_flag));
+	PvdIdSetAttr(PtPvdId, "lFlag", GetIntStr(pa->l_flag));
+	PvdIdSetAttr(PtPvdId, "lifetime", GetIntStr(pa->expires));
+
+	PvdIdSetAttr(
+		PtPvdId,
+		"addresses",
+		pt = In6AddrToJsonArray(
+			pa->naddresses,
+			pa->addresses,
+			pa->addr_prefix_len));
+	free(pt);
+
+	PvdIdSetAttr(
+		PtPvdId,
+		"routes",
+		pt = In6RoutesToJsonArray(pa->nroutes, pa->routes));
+	free(pt);
+
+	/*
+	 * User options now : RDNSS/DNSSL
+	 */
+	for (i = 0; i < pa->nrdnss; i++) {
+		PtPvdId->KernelRdnss[i] = pa->rdnss[i];
+	}
+	PtPvdId->nKernelRdnss = pa->nrdnss;
+
+	for (i = 0; i < PtPvdId->nKernelDnssl; i++) {
+		free(PtPvdId->KernelDnssl[i]);
+	}
+	for (i = 0; i < pa->ndnssl; i++) {
+		PtPvdId->KernelDnssl[i] = strdup(pa->dnssl[i]);
+	}
+	PtPvdId->nKernelDnssl = pa->ndnssl;
+
+	PvdIdSetAttr(
+		PtPvdId,
+		"rdnss",
+		pt = PvdIdRdnssToJsonArray(PtPvdId));
+	free(pt);
+
+	PvdIdSetAttr(
+		PtPvdId,
+		"dnssl",
+		pt = PvdIdDnsslToJsonArray(PtPvdId));
+	free(pt);
+
+	PvdIdEndTransaction(PtPvdId);
+
+	return(0);
+}
+
+static	int	DeleteRdnss(int *nrdnss, struct in6_addr *rdnss, struct in6_addr *oneRdnss)
+{
+	int	i, j;
+
+	for (i = 0; i < *nrdnss; i++) {
+		if (memcmp(&rdnss[i], oneRdnss, sizeof(*oneRdnss)) == 0) {
+			for (j = i + 1; j < *nrdnss; j++) {
+				rdnss[j - 1] = rdnss[j];
+			}
+			(*nrdnss)--;
+			return(1);
+		}
+	}
+	return(0);
+}
+
+static	int	DeleteDnssl(int *ndnssl, char **dnssl, char *oneDnssl)
+{
+	int	i, j;
+
+	for (i = 0; i < *ndnssl; i++) {
+		if (EQSTR(dnssl[i], oneDnssl)) {
+			free(dnssl[i]);
+			for (j = i + 1; j < *ndnssl; j++) {
+				dnssl[j - 1] = dnssl[j];
+			}
+			(*ndnssl)--;
+			return(1);
+		}
+	}
+	return(0);
+}
+
+static	void	HandleRtNetlink(t_rtnetlink_cnx *cnx)
+{
+	void *vmsg;
+	int type;
+	int rc;
+	t_PvdId *PtPvdId;
+
+	if ((vmsg = rtnetlink_recv(cnx, &type)) == NULL) {
+		return;
+	}
+
+	if (type == RTM_PVDSTATUS) {
+		struct pvdmsg *pvdmsg = vmsg;
+		struct net_pvd_attribute attr;
+
+		printf("HandleRtNetlink : RTM_PVDSTATUS received\n");
+
+		if (pvdmsg->pvd_state == PVD_NEW || pvdmsg->pvd_state == PVD_UPDATE) {
+			if (kernel_get_pvd_attributes(pvdmsg->pvd_name, &attr) == 0) {
+				RegisterPvdAttributes(&attr);
+			}
+			else {
+				perror("kernel_get_pvd_attribute");
+			}
+			return;
+		}
+
+		if (pvdmsg->pvd_state == PVD_DEL) {
+			UnregisterPvdId(pvdmsg->pvd_name);
+			return;
+		}
+		return;
+	}
+
+	if (type == RTM_RDNSS) {
+		struct rdnssmsg *rdnssmsg = vmsg;
+
+		DLOG("HandleRtNetlink : RTM_RDNSS received (state = %s)\n",
+			rdnssmsg->rdnss_state == RDNSS_DEL ?
+				"RDNSS_DEL" : "RDNSS_NEW");
+
+		/*
+		 * RDNSS_DEL can reference a user defined RDNSS
+		 */
+		if (rdnssmsg->rdnss_state == RDNSS_DEL) {
+			if ((PtPvdId = GetPvdIdByName(rdnssmsg->pvd_name)) != NULL) {
+				rc = DeleteRdnss(
+					&PtPvdId->nKernelRdnss,
+					PtPvdId->KernelRdnss,
+					&rdnssmsg->rdnss);
+				rc += DeleteRdnss(
+					&PtPvdId->nUserRdnss,
+					PtPvdId->UserRdnss,
+					&rdnssmsg->rdnss);
+				if (rc != 0) {
+					NotifyPvdIdAttributes(PtPvdId);
+				}
+			}
+		}
+		return;
+	}
+
+	if (type == RTM_DNSSL) {
+		struct dnsslmsg *dnsslmsg = vmsg;
+
+		DLOG("HandleRtNetlink : RTM_DNSSL received (state = %s)\n",
+			dnsslmsg->dnssl_state == DNSSL_DEL ?
+				"DNSSL_DEL" :"DNSSL_NEW");
+
+		/*
+		 * DNSSL_DEL can reference a user defined DNSSL
+		 */
+		if (dnsslmsg->dnssl_state == DNSSL_DEL) {
+			if ((PtPvdId = GetPvdIdByName(dnsslmsg->pvd_name)) != NULL) {
+				rc = DeleteDnssl(
+					&PtPvdId->nKernelDnssl,
+					PtPvdId->KernelDnssl,
+					dnsslmsg->dnssl);
+				rc += DeleteDnssl(
+					&PtPvdId->nUserDnssl,
+					PtPvdId->UserDnssl,
+					dnsslmsg->dnssl);
+				if (rc != 0) {
+					NotifyPvdIdAttributes(PtPvdId);
+				}
+			}
+		}
+		return;
+	}
+}
+
 static	int	getint(char *s, int *PtN)
 {
 	int	n = 0;
@@ -1194,10 +1602,14 @@ int	main(int argc, char **argv)
 	int		i;
 	int		Port = DEFAULT_PVDID_PORT;
 	char		*PersistentDir = NULL;
-	int		sockIcmpv6;
+	int		sockIcmpv6 = -1;
 	int		serverSock;
 	struct pvd_list	pvl;	/* careful : this can be quite big */
 	struct ra_list	*ral;
+	int		FlagUseCachedRa = false;
+	t_rtnetlink_cnx	*RtnlCnx = NULL;
+	int		sockRtnlink = -1;
+	int		KernelHasPvdSupport = false;
 
 	lMyName = basename(strdup(argv[0]));	// valgrind : leak on strdup
 
@@ -1208,6 +1620,10 @@ int	main(int argc, char **argv)
 		}
 		if (EQSTR(argv[i], "-v") || EQSTR(argv[i], "--verbose")) {
 			lFlagVerbose = true;
+			continue;
+		}
+		if (EQSTR(argv[i], "-r") || EQSTR(argv[i], "--use-cached-ra")) {
+			FlagUseCachedRa = true;
 			continue;
 		}
 
@@ -1237,6 +1653,11 @@ int	main(int argc, char **argv)
 		printf("Server port : %d\n", Port);
 		printf("Persistent directory : %s\n",
 			PersistentDir == NULL ? "none defined" : PersistentDir);
+		printf("sizeof net_pvd_attribute = %lu\n",
+			(unsigned long) sizeof(struct net_pvd_attribute));
+		printf("sizeof pvd_list = %lu\n",
+			(unsigned long) sizeof(struct pvd_list));
+		printf("PVDNAMSIZ = %d\n", PVDNAMSIZ);
 	}
 
 	signal(SIGPIPE, SIG_IGN);
@@ -1247,54 +1668,66 @@ int	main(int argc, char **argv)
 	 */
 
 	/*
-	 * Create the netlink raw socket with the kernel (to receive icmpv6
-	 * options conveying the pvdid/dns data carried over by router
-	 * advertisement messages)
+	 * Here, we need to decide how to retrieve PvD information :
+	 * + on kernels unaware of PvD, the applications may still receive
+	 *   RAs via a icmpv6_socket. This is not entirely accurate as some
+	 *   RAs may have been received before the application has started
+	 *   (or be restarted in case of crash). In addition, this requires
+	 *   the application to also handle lifetimes of the various fields
+	 *   More than that, it will be more complicated for the application
+	 *   to associate PvD and induced addresses and routes
+	 *
+	 * + on PvD aware kernels, a new rtnetlink group should be present
+	 *   to notify
+	 *
+	 * We determine in which case we are by calling the pvd_get_list()
+	 * function (which ends up calling a socket() specific function,
+	 * returning ENOPROTOOPT eventually). If this call is supported
+	 * by the kernel, we assume that the whole PvD functionality is
+	 * supported by it
+	 *
+	 * Ultimately, support for the 1st case will be dropped
 	 */
-	if ((sockIcmpv6 = open_icmpv6_socket()) == -1) {
-		DLOG("can't create ICMPV6 netlink socket\n");
-		// Don't fail for now
-		// return(1);
-	}
-
 	/*
 	 * On startup, we must query the kernel for its current
 	 * RA tables (at least, for the current pvdId list).
 	 * An error can occur if the kernel is not recognizing
 	 * the command (ENOPROTOOPT)
 	 */
-#if	0
+	if (FlagUseCachedRa) {
+		goto get_cached_ra;
+	}
+
 	pvl.npvd = MAXPVD;
-	if (pvd_get_list(&pvl) != -1) {
-		struct net_pvd_attribute *pa;
+	if (kernel_get_pvdlist(&pvl) != -1) {
+		struct net_pvd_attribute attr;
+
+		KernelHasPvdSupport = true;
 
 		DLOG("%d pvd retrieved from kernel\n", pvl.npvd);
 
-		for (i = 0, pa = pvl.pvds; i < pvl.npvd; i++, pa++) {
-			t_PvdId	*PtPvdId = RegisterPvdId(pa->index, pa->name);
-
-			if (PtPvdId == NULL) {
-				// Fatal error
-				fprintf(stderr, "Can not register pvd %s\n", pa->name);
-				return(1);
+		for (i = 0; i < pvl.npvd; i++) {
+			if (kernel_get_pvd_attributes(pvl.pvds[i],  &attr) == 0) {
+				RegisterPvdAttributes(&attr);
 			}
-			PvdIdBeginTransaction(pa->name);
-			PvdIdSetAttr(
-				PtPvdId,
-				"sequenceNumber",
-				GetIntStr(pa->sequence_number));
-			PvdIdSetAttr(PtPvdId, "hFlag", GetIntStr(pa->h_flag));
-			PvdIdSetAttr(PtPvdId, "lFlag", GetIntStr(pa->l_flag));
-			PvdIdSetAttr(PtPvdId, "lifetime", GetIntStr(pa->expires));
-			PvdIdEndTransaction(PtPvdId);
+			else {
+				perror("kernel_get_pvd_attribute");
+			}
 		}
 	}
 	else {
 		if (lFlagVerbose) {
-			perror("pvd_get_list");
+			perror("kernel_get_pvdlist");
+			if (errno == ENOPROTOOPT) {
+				fprintf(stderr,
+					"++++ Assuming kernel not PvD aware\n");
+			}
 		}
 	}
-#endif
+	goto skip_cached_ra;
+
+get_cached_ra :
+	KernelHasPvdSupport = true;	/* user's responsibility */
 
 	if ((ral = ralist_alloc(16)) != NULL) {
 		if (kernel_get_ralist(ral) != -1) {
@@ -1312,6 +1745,35 @@ int	main(int argc, char **argv)
 			perror("kernel_get_ralist");
 		}
 		ralist_release(ral);
+	}
+
+skip_cached_ra :
+	if (lFlagVerbose) {
+		fprintf(stderr,
+			"+++ Kernel %s PvD support\n",
+			KernelHasPvdSupport ? "has" : " does not have");
+	}
+
+	/*
+	 * Create the netlink raw socket with the kernel (to receive icmpv6
+	 * options conveying the pvdid/dns data carried over by router
+	 * advertisement messages)
+	 */
+	if (! KernelHasPvdSupport && (sockIcmpv6 = open_icmpv6_socket()) == -1) {
+		DLOG("can't create ICMPV6 netlink socket\n");
+		// Don't fail for now
+		// return(1);
+	}
+
+	if (KernelHasPvdSupport) {
+		if ((RtnlCnx = rtnetlink_connect()) != NULL) {
+			sockRtnlink = rtnetlink_get_fd(RtnlCnx);
+			if (lFlagVerbose) {
+				fprintf(stderr,
+					"Monitoring rtnetlink (fd = %d)\n",
+					sockRtnlink);
+			}
+		}
 	}
 
 	/*
@@ -1343,6 +1805,11 @@ int	main(int argc, char **argv)
 			if (sockIcmpv6 > nMax) nMax = sockIcmpv6;
 		}
 
+		if (sockRtnlink != -1) {
+			FD_SET(sockRtnlink, &fdsI);
+			if (sockRtnlink > nMax) nMax = sockRtnlink;
+		}
+
 		for (i = 0; i < lNClients; i++) {
 			if ((s = lTabClients[i].s) != -1) {
 				FD_SET(s, &fdsI);
@@ -1352,7 +1819,7 @@ int	main(int argc, char **argv)
 
 		if (select(nMax + 1, &fdsI, NULL, NULL, NULL) == -1) {
 			if (lFlagVerbose) {
-				perror("pvdid-daemon select");
+				perror("pvdd select");
 			}
 			usleep(100000);
 			continue;
@@ -1364,6 +1831,10 @@ int	main(int argc, char **argv)
 
 		if (sockIcmpv6 != -1 && FD_ISSET(sockIcmpv6, &fdsI)) {
 			HandleNetlink(sockIcmpv6);
+		}
+
+		if (sockRtnlink != -1 && FD_ISSET(sockRtnlink, &fdsI)) {
+			HandleRtNetlink(RtnlCnx);
 		}
 
 		FlagCompact = false;

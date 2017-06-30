@@ -12,7 +12,7 @@
 
 #define	DLOG(args...)	\
 	if (lFlagVerbose) {\
-		fprintf(stderr, "pvdid-daemon : ");\
+		fprintf(stderr, "pvdd : ");\
 		fprintf(stderr, args);\
 	}
 

@@ -136,7 +136,7 @@ struct nd_opt_pvdid_info_local {
 };
 
 /* This assumes that str is not null and str_size > 0 */
-static void addrtostr(struct in6_addr const *addr, char *str, size_t str_size)
+char *addrtostr(struct in6_addr const *addr, char *str, size_t str_size)
 {
 	const char *res;
 
@@ -147,6 +147,7 @@ static void addrtostr(struct in6_addr const *addr, char *str, size_t str_size)
 		strncpy(str, "[invalid address]", str_size);
 		str[str_size - 1] = '\0';
 	}
+	return(str);
 }
 
 /*

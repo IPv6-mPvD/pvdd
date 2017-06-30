@@ -1,6 +1,6 @@
 
 
-SFDAEMON=	pvdid-daemon.c pvdid-netlink.c pvdid-utils.c
+SFDAEMON=	pvdid-daemon.c pvdid-netlink.c pvdid-rtnetlink.c pvdid-utils.c
 OFDAEMON=	$(SFDAEMON:%.c=obj/%.o)
 
 SFLIB=		libpvdid.c libpvdid-utils.c
@@ -21,6 +21,7 @@ SRCS=	\
 	libpvdid-utils.c	\
 	pvdid-daemon.c		\
 	pvdid-netlink.c		\
+	pvdid-rtnetlink.c		\
 	pvdid-utils.c
 
 obj :

@@ -887,6 +887,35 @@ int	kernel_get_pvdlist(struct pvd_list *pvl)
 }
 
 
+int	pvd_get_attributes(char *pvdname, struct net_pvd_attribute *attr)
+{
+	int		s;
+	int		rc;
+	socklen_t	optlen = sizeof(struct pvd_attr);
+	struct pvd_attr	pvdattr;
+
+	memset(attr, 0, sizeof(*attr));
+
+	pvdattr.pvdname = pvdname;
+	pvdattr.pvdattr = attr;
+
+	if ((s = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+		return(-1);
+	}
+
+	rc = getsockopt(s, SOL_SOCKET, SO_GETPVDATTRIBUTES, &pvdattr, &optlen);
+
+	close(s);
+
+	return(rc);
+}
+
+int	kernel_get_pvd_attributes(char *pvdname, struct net_pvd_attribute *attr)
+{
+	return(pvd_get_attributes(pvdname, attr));
+}
+
+
 /*
  * Tricky part to take rid of alignement issues
  * We define a ra_list structure with a well known

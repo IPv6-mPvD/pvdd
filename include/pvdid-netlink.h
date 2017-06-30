@@ -13,6 +13,10 @@ extern void process_ra(
 		struct sockaddr_in6 *addr,
 		struct in6_addr *sin6_addr,
 		char *if_name);
+extern char *addrtostr(
+		struct in6_addr const *addr, 
+		char *str,
+		size_t str_size);
 
 #endif	/* PVDID_NETLINK_H */
 

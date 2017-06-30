@@ -154,7 +154,7 @@ char	*Stringify(char *s)
 	return(lS);
 }
 
-// JsonArray : convert an array of strings into its JSON strin representation
+// JsonArray : convert an array of strings into its JSON string representation
 // The returned string must be released by calling free()
 char	*JsonArray(int nStr, char **str)
 {
