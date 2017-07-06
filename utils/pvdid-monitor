@@ -1,16 +1,33 @@
 #!/usr/bin/env node
 
-// Node module fetching and monitoring PVDID JSON extra information
-// via HTTPS
-// It handles either the 'expire' header for the message or the
-// expireDate field in the JSON object. This triggers a new request
-// to be sent to the https://<pvdid>/pvd.json URI
-// Changes are notified to the main daemon
-//
-// The list of PvD to monitor is either specified on the
-// command line, either discovered via the notifications sent by
-// the pvdid-daemon
+/*
+	Copyright 2017 Cisco
 
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+		http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+*/
+/*
+ * Node module fetching and monitoring PVDID JSON extra information
+ * via HTTPS
+ * It handles either the 'expire' header for the message or the
+ * expireDate field in the JSON object. This triggers a new request
+ * to be sent to the https://<pvdid>/pvd.json URI
+ *
+ * Changes are notified to the main daemon
+ *
+ * The list of PvD to monitor is either specified on the
+ * command line, either discovered via the notifications sent by
+ * the pvdid-daemon
+ */
 var Net = require("net");
 var schedule = require("node-schedule");
 var http = require("http");
@@ -39,7 +56,9 @@ function ComplainConnection(Port, msg, err) {
 	console.log(msg + "@pvdid-daemon:" + Port + ": " + err.code);
 }
 
-// CancelTimers : cancels all pending timers attached to a pvd
+/*
+ * CancelTimers : cancels all pending timers attached to a pvd
+ */
 function CancelTimers(pvdId) {
 	if (allPvd[pvdId].scheduleJob != null) {
 		try {
@@ -60,7 +79,9 @@ function CancelTimers(pvdId) {
 	}
 }
 
-// NewPvD : registers a new pvd. If already existing, does nothing
+/*
+ * NewPvD : registers a new pvd. If already existing, does nothing
+ */
 function NewPvD(pvdId) {
 	if (allPvd[pvdId] == null) {
 		allPvd[pvdId] = {
@@ -72,8 +93,10 @@ function NewPvD(pvdId) {
 	}
 }
 
-// DelPvD : unregisters a pvd. This, for now, cancels any pending timer and
-// set its entry to null
+/*
+ * DelPvD : unregisters a pvd. This, for now, cancels any pending timer and
+ * set its entry to null
+ */
 function DelPvD(pvdId) {
 	if (allPvd[pvdId] != null) {
 		allPvd[pvdId].attributes = {};
@@ -83,8 +106,10 @@ function DelPvD(pvdId) {
 	}
 }
 
-// DelAllPvD : unregisters all pvd. This is called when the connection is
-// lost with the daemon
+/*
+ * DelAllPvD : unregisters all pvd. This is called when the connection is
+ * lost with the daemon
+ */
 function DelAllPvD() {
 	for (var key in allPvd) {
 		CancelTimers(key);
@@ -103,8 +128,10 @@ function GetJson(s) {
 	return(null);
 }
 
-// Control connection related functions. The control connection will be used to
-// send attributes updates
+/*
+ * Control connection related functions. The control connection will be used to
+ * send attributes updates
+ */
 function ControlSockInit(sock) {
 	sock.write("PVDID_CONNECTION_PROMOTE_CONTROL\n");
 	DefaultPvd.forEach(function(pvdId) {
@@ -116,8 +143,10 @@ var controlSock = null;
 var controlSucceeded = true;
 
 function controlConnection(Port) {
-	// Perform the initial connection, and automatic reconnection
-	// in case we lose connection with it
+	/*
+	 * Perform the initial connection, and automatic reconnection
+	 * in case we lose connection with it
+	 */
 	if (controlSock == null) {
 		controlSock = Net.connect({ host : "0.0.0.0", port : Port });
 		controlSock.on("connect", function() {
@@ -139,8 +168,10 @@ function controlConnection(Port) {
 	setTimeout(controlConnection, 1000, Port);
 }
 
-// MonitorPvD : given a pvdId, check if it is needed to start/stop retrieving
-// its associated JSON extra info (that's what we call monitoring a PvD)
+/*
+ * MonitorPvD : given a pvdId, check if it is needed to start/stop retrieving
+ * its associated JSON extra info (that's what we call monitoring a PvD)
+ */
 function MonitorPvD(sock, pvdId, forceNow) {
 	if (allPvd[pvdId] != null) {
 		if (allPvd[pvdId].attributes.hFlag) {
@@ -151,28 +182,36 @@ function MonitorPvD(sock, pvdId, forceNow) {
 		}
 		else {
 			if (allPvd[pvdId].monitored) {
-				// Currently been monitored => we must abort the
-				// monitoring (ie, if a https.get is in progress,
-				// just let it go, but if a timer is programmed,
-				// abort the timer)
+				/*
+				 * Currently been monitored => we must abort the
+				 * monitoring (ie, if a https.get is in progress,
+				 * just let it go, but if a timer is programmed,
+				 * abort the timer)
+				 */
 				allPvd[pvdId].monitored = false;
 				CancelTimers(pvdId);
 			}
-			// In any case, we must delete the extraInfo field
+			/*
+			 * In any case, we must delete the extraInfo field
+			 */
 			UnsetAttribute(pvdId, "extraInfo");
 		}
 	}
 }
 
-// UpdateAttributes : update the internal attributes structure for a given
-// pvdId and restart the PvD monitoring. This function is called when
-// the attributes for the PvD have been received
+/*
+ * UpdateAttributes : update the internal attributes structure for a given
+ * pvdId and restart the PvD monitoring. This function is called when
+ * the attributes for the PvD have been received
+ */
 function UpdateAttribute(sock, pvdId, attributes) {
 	dlog("UpdateAttribute : pvdId = " + pvdId + ", attributes = " + attributes);
 	if (allPvd[pvdId] != null) {
 		var J;
 		if ((J = GetJson(attributes)) != null) {
-			// Check the Seq field for changes
+			/*
+			 * Check the Seq field for changes
+			 */
 			var forceNow =
 				J.sequenceNumber != allPvd[pvdId].attributes.sequenceNumber;
 			allPvd[pvdId].attributes = J;
@@ -183,8 +222,10 @@ function UpdateAttribute(sock, pvdId, attributes) {
 	}
 }
 
-// HandleMultiLine : a multi-line message has been fully read
-// Parses the message and handles it
+/*
+ * HandleMultiLine : a multi-line message has been fully read
+ * Parses the message and handles it
+ */
 function HandleMultiLine(sock, msg) {
 	var r;
 
@@ -197,8 +238,10 @@ function HandleMultiLine(sock, msg) {
 	return;
 }
 
-// HandleOneLine : one line message handling. The trailing
-// \n must have been removed
+/*
+ * HandleOneLine : one line message handling. The trailing
+ * \n must have been removed
+ */
 var multiLines = false;
 var fullMsg = "";
 
@@ -207,36 +250,46 @@ function HandleOneLine(sock, msg) {
 
 	dlog("Handling one line : " + msg + " (multiLines = " + multiLines + ")");
 
-	// We check the beginning of a multi-lines section
-	// before anything else, to reset the buffer in case
-	// a previous multi-lines was improperly closed
+	/*
+	 * We check the beginning of a multi-lines section
+	 * before anything else, to reset the buffer in case
+	 * a previous multi-lines was improperly closed
+	 */
 	if (msg == "PVDID_BEGIN_MULTILINE") {
 		multiLines = true;
 		fullMsg = "";
 		return;
 	}
 
-	// End of a multi-lines section ?
+	/*
+	 * End of a multi-lines section ?
+	 */
 	if (msg == "PVDID_END_MULTILINE") {
 		HandleMultiLine(sock, fullMsg);
 		multiLines  = false;
 		return;
 	}
 
-	// Are we in a mult-line section ?
+	/*
+	 * Are we in a mult-line section ?
+	 */
 	if (multiLines) {
 		fullMsg += msg + "\n";
 		return;
 	}
 
-	// Single line messages
+	/*
+	 * Single line messages
+	 */
 	if ((r = msg.match(/PVDID_LIST +(.*)/i)) != null) {
 		if ((newListPvD = r[1].match(/[^ ]+/g)) == null) {
 			return;
 		}
 		newListPvD.forEach(function(pvdId) {
 			if (allPvd[pvdId] == null) {
-				// New PvD => retrieve its attributes
+				/*
+				 * New PvD => retrieve its attributes
+				 */
 				NewPvD(pvdId);
 				sock.write("PVDID_GET_ATTRIBUTES " + pvdId + "\n");
 			}
@@ -246,12 +299,16 @@ function HandleOneLine(sock, msg) {
 	}
 
 	if (msg.match(/PVDID_NEW_PVDID.*/i) != null) {
-		// Ignore them (we prefer using PVDID_LIST instead)
+		/*
+		 * Ignore them (we prefer using PVDID_LIST instead)
+		 */
 		return;
 	}
 
 	if ((r = msg.match(/PVDID_DEL_PVDID +([^ ]+)/i)) != null) {
-		// We must stop monitoring this PvD and unregister it
+		/*
+		 * We must stop monitoring this PvD and unregister it
+		 */
 		var pvdId = r[1];
 
 		DelPvD(pvdId);
@@ -265,8 +322,11 @@ function HandleOneLine(sock, msg) {
 	return;
 }
 
-// Regular connection related functions. The regular connection will be used to send
-// queries (PvD list and attributes) and to receive replies/notifications
+/*
+ * Regular connection related functions. The regular connection will be used
+ * to send queries (PvD list and attributes) and to receive
+ * replies/notifications
+ */
 function regularSockInit(sock) {
 	sock.write("PVDID_GET_LIST\n");
 	sock.write("PVDID_SUBSCRIBE_NOTIFICATIONS\n");
@@ -277,8 +337,10 @@ var regularSock = null;
 var regularSucceeded = true;
 
 function regularConnection(Port) {
-	// Perform the initial connection, and automatic reconnection
-	// in case we lose connection with it
+	/*
+	 * Perform the initial connection, and automatic reconnection
+	 * in case we lose connection with it
+	 */
 	if (regularSock == null) {
 		regularSock = Net.connect({ host : "0.0.0.0", port : Port });
 		regularSock.on("connect", function() {
@@ -306,9 +368,11 @@ function regularConnection(Port) {
 	setTimeout(regularConnection, 1000, Port);
 }
 
-// SetAttribute : send a set attribute query to the daemon
-// The attrValue must be a valid JSON object (actually its
-// string representation)
+/*
+ * SetAttribute : send a set attribute query to the daemon
+ * The attrValue must be a valid JSON object (actually its
+ * string representation)
+ */
 function SetAttribute(pvdId, attrName, attrValue) {
 	if (controlSock != null) {
 		dlog("SetAttribute : attrName = " + attrName + ", attrValue = " + attrValue);
@@ -323,7 +387,9 @@ function SetAttribute(pvdId, attrName, attrValue) {
 	}
 }
 
-// UnsetAttribute : send a unset attribute query to the daemon
+/*
+ * UnsetAttribute : send a unset attribute query to the daemon
+ */
 function UnsetAttribute(pvdId, attrName) {
 	if (controlSock != null) {
 		controlSock.write(
@@ -339,16 +405,18 @@ function ScheduleRetry(pvdId) {
 	}
 }
 
-// DateStr : ISO8601 format. It should be recognized by Date.parse()
-// We should add a random delay to avoid flooding the https server
-// with GET requests at the same time. We should also make sure to
-// not query the http server at the exact time it says the data is
-// expiring (we might query data before the server actually has
-// updated it [race condition] the expires field for the next
-// expiration date)
-// So, if the expiration date is past or current, we will perform
-// a retry 5 seconds later (when this situation happens, scheduleJob()
-// returns a job == {}, hence j.name == null)
+/*
+ * DateStr : ISO8601 format. It should be recognized by Date.parse()
+ * We should add a random delay to avoid flooding the https server
+ * with GET requests at the same time. We should also make sure to
+ * not query the http server at the exact time it says the data is
+ * expiring (we might query data before the server actually has
+ * updated it [race condition] the expires field for the next
+ * expiration date)
+ * So, if the expiration date is past or current, we will perform
+ * a retry 5 seconds later (when this situation happens, scheduleJob()
+ * returns a job == {}, hence j.name == null)
+ */
 function ScheduleAt(pvdId, DateStr, f, args) {
 	tlog("ScheduleAt at " + DateStr + " programmed for " + pvdId);
 	var j = new schedule.scheduleJob(new Date(DateStr), function() { f(args); });
@@ -397,17 +465,21 @@ function RetrievePvdExtraInfo(pvdId) {
 					return;
 				}
 
-				// Instead of passing d.toString() below, we pass
-				// the stringified conversion of the JSON object
-				// to send something cleaner to the daemon
+				/*
+				 * Instead of passing d.toString() below, we pass
+				 * the stringified conversion of the JSON object
+				 * to send something cleaner to the daemon
+				 */
 				SetAttribute(pvdId, "extraInfo", JSON.stringify(J, null, 12));
 				tlog("PvdId : " + pvdId + " expires = " + J.expires);
 
-				// Schedule if needed the retrieval of the JSON based
-				// on the 'expires' field
-				// FIXME : check that the date format of the JSON
-				// and of the HTTP header are both recognized by
-				// the Date() parser of node
+				/*
+				 * Schedule if needed the retrieval of the JSON based
+				 * on the 'expires' field
+				 * FIXME : check that the date format of the JSON
+				 * and of the HTTP header are both recognized by
+				 * the Date() parser of node
+				 */
 				if ((nextDate = (J.expires || res.headers.expires)) != null) {
 					allPvd[pvdId].scheduleJob =
 						ScheduleAt(
@@ -424,7 +496,9 @@ function RetrievePvdExtraInfo(pvdId) {
 	});
 }
 
-// Options parsing
+/*
+ * Options parsing
+ */
 var InPvdList = false;
 var Help = false;
 
@@ -468,3 +542,4 @@ var Port = parseInt(process.env["PVDID_PORT"]) || 10101;
 controlConnection(Port);
 regularConnection(Port);
 
+/* ex: set ts=8 noexpandtab wrap: */
