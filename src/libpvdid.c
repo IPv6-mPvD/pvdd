@@ -874,7 +874,7 @@ int	pvd_get_list(struct pvd_list *pvl)
 		return(-1);
 	}
 
-	rc = getsockopt(s, SOL_SOCKET, SO_GETPVDINFO, &pvl, &optlen);
+	rc = getsockopt(s, SOL_SOCKET, SO_GETPVDLIST, &pvl, &optlen);
 
 	close(s);
 
@@ -915,6 +915,77 @@ int	kernel_get_pvd_attributes(char *pvdname, struct net_pvd_attribute *attr)
 	return(pvd_get_attributes(pvdname, attr));
 }
 
+int	kernel_create_pvd(char *pvdname)
+{
+	int			s;
+	int			rc;
+	struct create_pvd	cpvd;
+
+	memset(&cpvd, 0, sizeof(cpvd));
+
+	strncpy(cpvd.pvdname, pvdname, PVDNAMSIZ - 1);
+
+	if ((s = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+		return(-1);
+	}
+
+	rc = setsockopt(s, SOL_SOCKET, SO_CREATEPVD, &cpvd, sizeof(cpvd));
+
+	close(s);
+
+	return(rc);
+}
+
+int	kernel_update_pvd_attr(char *pvdname, char *attrName, char *attrValue)
+{
+	int			s;
+	int			rc;
+	struct create_pvd	cpvd;
+	int			value;
+	char			*pt;
+
+	memset(&cpvd, 0, sizeof(cpvd));
+
+	strncpy(cpvd.pvdname, pvdname, PVDNAMSIZ - 1);
+
+	errno = 0;
+	value = strtol(attrValue, &pt, 10);
+	if (errno != 0 || pt == attrValue || *pt != '\0') {
+		errno = -EINVAL;
+		return(-1);
+	}
+
+	if (EQSTR(attrName, "hFlag")) {
+		cpvd.flag = PVD_ATTR_HFLAG;
+		cpvd.h_flag = value == 0 ? 0 : 1;
+	} else
+	if (EQSTR(attrName, "lFlag")) {
+		cpvd.flag = PVD_ATTR_LFLAG;
+		cpvd.l_flag = value == 0 ? 0 : 1;
+	} else
+	if (EQSTR(attrName, "sequenceNumber")) {
+		cpvd.flag = PVD_ATTR_SEQNUMBER;
+		cpvd.sequence_number = value % 15;
+	} else
+	if (EQSTR(attrName, "lifetime")) {
+		cpvd.flag = PVD_ATTR_LIFETIME;
+		cpvd.lifetime = value;
+	}
+	else {
+		errno = -EINVAL;
+		return(-1);
+	}
+
+	if ((s = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+		return(-1);
+	}
+
+	rc = setsockopt(s, SOL_SOCKET, SO_CREATEPVD, &cpvd, sizeof(cpvd));
+
+	close(s);
+
+	return(rc);
+}
 
 /*
  * Tricky part to take rid of alignement issues

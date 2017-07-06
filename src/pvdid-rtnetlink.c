@@ -21,8 +21,10 @@
 
 #ifdef	HAS_PVDUSER
 #include <linux/rtnetlink.h>
+#include <linux/pvd-user.h>
 #else
 #include "linux/rtnetlink.h"	/* local copy of the expected header file */
+#include "linux/pvd-user.h"
 #endif
 
 #include "pvdid-rtnetlink.h"

@@ -140,6 +140,8 @@ static	t_PvdId	*lFirstPvdId = NULL;
 
 static	char	*lMyName = "";
 
+static	int	lKernelHasPvdSupport = false;
+
 /* functions definitions ----------------------------------------- */
 static	int	NotifyPvdIdAttributes(t_PvdId *PtPvdId);
 static	int	RemoveSubscription(int ix, char *pvdId);
@@ -726,6 +728,7 @@ static	int	DeleteAttribute(t_PvdId *PtPvdId, char *Key)
 		if (attrKey != NULL && EQSTR(attrKey, Key)) {
 			if (attrVal != NULL) {
 				free(attrVal);
+				PtPvdId->Attributes[i].Value = NULL;
 			}
 			free(attrKey);
 			PtPvdId->Attributes[i].Key = NULL;
@@ -1263,10 +1266,29 @@ static	int	DispatchMessage(char *msg, int ix)
 				     pvdId);
 				return(0);
 			}
+			if (lKernelHasPvdSupport &&
+			    (EQSTR(attributeName, "hFlag") ||
+			     EQSTR(attributeName, "lFlag") ||
+			     EQSTR(attributeName, "sequenceNumber") ||
+			     EQSTR(attributeName, "lifetime"))) {
+				if (kernel_update_pvd_attr(
+						pvdId,
+						attributeName,
+						attributeValue) == -1) {
+					perror("kernel_update_pvd_attr");
+				}
+				return(0);
+			}
 			return(UpdateAttribute(GetPvdId(pvdId), attributeName, attributeValue));
 		}
 
 		if (sscanf(msg, "PVDID_CREATE_PVDID %d %[^\n]", &pvdIdHandle, pvdId) == 2) {
+			if (lKernelHasPvdSupport) {
+				if (kernel_create_pvd(pvdId) == -1) {
+					perror("kernel_create_pvd");
+				}
+				return(0);
+			}
 			return(RegisterPvdId(pvdIdHandle, pvdId) != NULL);
 		}
 
@@ -1581,22 +1603,6 @@ static	void	HandleRtNetlink(t_rtnetlink_cnx *cnx)
 	}
 }
 
-static	int	getint(char *s, int *PtN)
-{
-	int	n = 0;
-	char	*pt;
-
-	errno = 0;
-
-	n = strtol(s, &pt, 10);
-
-	if (errno == 0 && pt != s && *pt == '\0') {
-		*PtN = n;
-		return(0);
-	}
-	return(-1);
-}
-
 int	main(int argc, char **argv)
 {
 	int		i;
@@ -1609,7 +1615,6 @@ int	main(int argc, char **argv)
 	int		FlagUseCachedRa = false;
 	t_rtnetlink_cnx	*RtnlCnx = NULL;
 	int		sockRtnlink = -1;
-	int		KernelHasPvdSupport = false;
 
 	lMyName = basename(strdup(argv[0]));	// valgrind : leak on strdup
 
@@ -1702,7 +1707,7 @@ int	main(int argc, char **argv)
 	if (kernel_get_pvdlist(&pvl) != -1) {
 		struct net_pvd_attribute attr;
 
-		KernelHasPvdSupport = true;
+		lKernelHasPvdSupport = true;
 
 		DLOG("%d pvd retrieved from kernel\n", pvl.npvd);
 
@@ -1727,7 +1732,7 @@ int	main(int argc, char **argv)
 	goto skip_cached_ra;
 
 get_cached_ra :
-	KernelHasPvdSupport = true;	/* user's responsibility */
+	lKernelHasPvdSupport = true;	/* user's responsibility */
 
 	if ((ral = ralist_alloc(16)) != NULL) {
 		if (kernel_get_ralist(ral) != -1) {
@@ -1751,7 +1756,7 @@ skip_cached_ra :
 	if (lFlagVerbose) {
 		fprintf(stderr,
 			"+++ Kernel %s PvD support\n",
-			KernelHasPvdSupport ? "has" : " does not have");
+			lKernelHasPvdSupport ? "has" : " does not have");
 	}
 
 	/*
@@ -1759,13 +1764,13 @@ skip_cached_ra :
 	 * options conveying the pvdid/dns data carried over by router
 	 * advertisement messages)
 	 */
-	if (! KernelHasPvdSupport && (sockIcmpv6 = open_icmpv6_socket()) == -1) {
+	if (! lKernelHasPvdSupport && (sockIcmpv6 = open_icmpv6_socket()) == -1) {
 		DLOG("can't create ICMPV6 netlink socket\n");
 		// Don't fail for now
 		// return(1);
 	}
 
-	if (KernelHasPvdSupport) {
+	if (lKernelHasPvdSupport) {
 		if ((RtnlCnx = rtnetlink_connect()) != NULL) {
 			sockRtnlink = rtnetlink_get_fd(RtnlCnx);
 			if (lFlagVerbose) {

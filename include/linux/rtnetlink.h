@@ -7,8 +7,6 @@
 #include <linux/if_addr.h>
 #include <linux/neighbour.h>
 
-#include <linux/pvd-user.h>
-
 /* rtnetlink families. Values up to 127 are reserved for real address
  * families, values above 128 may be used arbitrarily.
  */
@@ -124,6 +122,8 @@ enum {
 
 	RTM_NEWNETCONF = 80,
 #define RTM_NEWNETCONF RTM_NEWNETCONF
+	RTM_DELNETCONF,
+#define RTM_DELNETCONF RTM_DELNETCONF
 	RTM_GETNETCONF = 82,
 #define RTM_GETNETCONF RTM_GETNETCONF
 
@@ -328,6 +328,8 @@ enum rtattr_type_t {
 	RTA_EXPIRES,
 	RTA_PAD,
 	RTA_UID,
+	RTA_TTL_PROPAGATE,
+	RTA_PVD,
 	__RTA_MAX
 };
 
@@ -359,6 +361,7 @@ struct rtnexthop {
 #define RTNH_F_ONLINK		4	/* Gateway is forced on link	*/
 #define RTNH_F_OFFLOAD		8	/* offloaded route */
 #define RTNH_F_LINKDOWN		16	/* carrier-down on nexthop */
+#define RTNH_F_UNRESOLVED	32	/* The entry is unresolved (ipmr) */
 
 #define RTNH_COMPARE_MASK	(RTNH_F_DEAD | RTNH_F_LINKDOWN | RTNH_F_OFFLOAD)
 
@@ -553,6 +556,7 @@ enum {
 	TCA_STATS2,
 	TCA_STAB,
 	TCA_PAD,
+	TCA_DUMP_INVISIBLE,
 	__TCA_MAX
 };
 
@@ -664,6 +668,8 @@ enum rtnetlink_groups {
 #define RTNLGRP_MPLS_ROUTE	RTNLGRP_MPLS_ROUTE
 	RTNLGRP_NSID,
 #define RTNLGRP_NSID		RTNLGRP_NSID
+	RTNLGRP_MPLS_NETCONF,
+#define RTNLGRP_MPLS_NETCONF	RTNLGRP_MPLS_NETCONF
 
 	RTNLGRP_PVD,
 #define RTNLGRP_PVD		RTNLGRP_PVD

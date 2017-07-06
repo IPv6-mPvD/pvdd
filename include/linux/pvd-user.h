@@ -8,11 +8,12 @@
  * SO_GETPVDINFO, SO_BINDTOPVD and SO_GETRALIST are defined in
  * another uapi header file (asm-generic/socket.h)
  */
-#ifndef	_NET_PVD_USER_H
-#define	_NET_PVD_USER_H
+#ifndef _LINUX_PVD_USER_H
+#define _LINUX_PVD_USER_H
 
 #include <linux/in6.h>
 #include <net/if.h>
+#include <linux/ipv6_route.h>
 
 /*
  * MAXPVD must be a power of 2
@@ -136,6 +137,30 @@ struct bind_to_pvd {
 	char pvdnames[MAXBOUNDPVD][PVDNAMSIZ];
 };
 
+/*
+ * For SO_CREATEPVD
+ */
+struct create_pvd {
+	char pvdname[PVDNAMSIZ];
+	int flag;	/* mask : see below PVD_ATTR_XXX */
+	int sequence_number;
+	int h_flag;
+	int l_flag;
+	unsigned long lifetime;
+};
+
+#define	PVD_ATTR_SEQNUMBER	0x01
+#define	PVD_ATTR_HFLAG		0x02
+#define	PVD_ATTR_LFLAG		0x04
+#define	PVD_ATTR_LIFETIME	0x08
+
+/*
+ * For SO_RT6PVD
+ */
+struct in6_rt_pvdmsg {
+	char pvdname[PVDNAMSIZ];
+	struct in6_rtmsg rtmsg;
+};
 
 /*
  * RTNETLINK related definitions
@@ -184,4 +209,4 @@ enum {
 	DNSSL_DEL
 };
 
-#endif		/* _NET_PVD_USER_H */
+#endif		/* _LINUX_PVD_USER_H */

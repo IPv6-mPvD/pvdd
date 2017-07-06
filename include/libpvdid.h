@@ -8,8 +8,8 @@
 #define	SO_BINDTOPVD	55
 #endif
 
-#ifndef	SO_GETPVDINFO
-#define	SO_GETPVDINFO		56
+#ifndef	SO_GETPVDLIST
+#define	SO_GETPVDLIST		56
 #endif
 
 #ifndef	SO_GETPVDATTRIBUTES
@@ -18,6 +18,10 @@
 
 #ifndef	SO_GETRALIST
 #define	SO_GETRALIST	58
+#endif
+
+#ifndef	SO_CREATEPVD
+#define	SO_CREATEPVD	59
 #endif
 
 /*
@@ -145,6 +149,8 @@ extern	int	pvd_get_list(struct pvd_list *pvl);
 extern	int	kernel_get_pvdlist(struct pvd_list *pvl);
 extern	int	pvd_get_attributes(char *pvdname, struct net_pvd_attribute *attr);
 extern	int	kernel_get_pvd_attributes(char *pvdname, struct net_pvd_attribute *attr);
+extern	int	kernel_create_pvd(char *pvdname);
+extern	int	kernel_update_pvd_attr(char *pvdname, char *attrName, char *attrValue);
 
 	/*
 	 * Cached RAs (API might be obsolated quickly, so don't rely on it)

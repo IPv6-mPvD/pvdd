@@ -25,6 +25,7 @@ typedef	struct {
 	char	*String;
 }	t_StringBuffer;
 
+extern int getint(char *s, int *PtN);
 extern void SBInit(t_StringBuffer *PtSB);
 extern void SBUninit(t_StringBuffer *PtSB);
 extern int SBAddString(t_StringBuffer *PtSB, char *fmt, ...);

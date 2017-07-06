@@ -7,13 +7,31 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <malloc.h>
 #include <string.h>
 #include <stdarg.h>
+#include <errno.h>
 
 #include "pvdid-utils.h"
 
 int	lFlagVerbose = false;
+
+int	getint(char *s, int *PtN)
+{
+	int	n = 0;
+	char	*pt;
+
+	errno = 0;
+
+	n = strtol(s, &pt, 10);
+
+	if (errno == 0 && pt != s && *pt == '\0') {
+		*PtN = n;
+		return(0);
+	}
+	return(-1);
+}
 
 // SBInit : initialize a SB structure (StringBuffer, aka an on demand growing string)
 void	SBInit(t_StringBuffer *SB)
