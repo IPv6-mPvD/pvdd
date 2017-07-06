@@ -1293,6 +1293,13 @@ static	int	DispatchMessage(char *msg, int ix)
 		}
 
 		if (sscanf(msg, "PVDID_REMOVE_PVDID %[^\n]", pvdId) == 1) {
+			if (lKernelHasPvdSupport) {
+				if (kernel_update_pvd_attr(
+						pvdId, "lifetime", "0") == -1) {
+					perror("kernel_update_pvd_attr");
+				}
+				return(0);
+			}
 			return(UnregisterPvdId(pvdId));
 		}
 
