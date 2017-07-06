@@ -26,7 +26,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
-#include <libpvdid.h>
+#include <libpvd.h>
 
 #define	EQSTR(a, b)	(strcasecmp((a), (b)) == 0)
 

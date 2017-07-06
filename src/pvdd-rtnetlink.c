@@ -14,7 +14,7 @@
 	limitations under the License.
 */
 /*
- * pvdid-rtnetlink.c : this provides access to PVD specific notifications via the
+ * pvdd-rtnetlink.c : this provides access to PVD specific notifications via the
  * RTNETLINK mechanism of the kernel
  */
 
@@ -38,7 +38,7 @@
 #include "linux/pvd-user.h"
 #endif
 
-#include "pvdid-rtnetlink.h"
+#include "pvdd-rtnetlink.h"
 
 #include <linux/netlink.h>
 

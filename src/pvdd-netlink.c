@@ -42,10 +42,10 @@
 
 #include <net/if.h>
 
-#include "pvdid-defs.h"
-#include "pvdid-daemon.h"
-#include "pvdid-netlink.h"
-#include "pvdid-utils.h"
+#include "pvd-defs.h"
+#include "pvdd.h"
+#include "pvdd-netlink.h"
+#include "pvd-utils.h"
 
 #define	_DLOG(level, args...)	DLOG(args)
 

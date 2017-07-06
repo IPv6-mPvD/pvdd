@@ -22,7 +22,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
-#include "libpvdid.h"
+#include "libpvd.h"
 
 static	void	GetDnssl(t_pvd_connection *conn, char *pvdId)
 {

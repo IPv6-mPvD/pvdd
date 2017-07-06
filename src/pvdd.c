@@ -66,13 +66,13 @@
 #include "linux/rtnetlink.h"
 #endif
 
-#include "pvdid-defs.h"
-#include "pvdid-daemon.h"
-#include "pvdid-utils.h"
-#include "pvdid-netlink.h"
-#include "pvdid-rtnetlink.h"
+#include "pvd-defs.h"
+#include "pvdd.h"
+#include "pvd-utils.h"
+#include "pvdd-netlink.h"
+#include "pvdd-rtnetlink.h"
 
-#include "libpvdid.h"
+#include "libpvd.h"
 
 /* constants and macros ------------------------------------------ */
 

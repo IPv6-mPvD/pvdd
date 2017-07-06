@@ -14,8 +14,8 @@
 	limitations under the License.
 */
 /*
- * libpvdid.c : provides a set of functions to hide to native (aka C)
- * applications the internal communication with the pvdid daemon
+ * libpvd.c : provides a set of functions to hide to native (aka C)
+ * applications the internal communication with the pvd daemon
  * It also gives access to some pvd related kernel system calls (well,
  * not really system calls)
  *
@@ -35,10 +35,10 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
-#include "pvdid-defs.h"
-#include "pvdid-utils.h"
+#include "pvd-defs.h"
+#include "pvd-utils.h"
 
-#include "libpvdid.h"
+#include "libpvd.h"
 
 #undef	true
 #undef	false

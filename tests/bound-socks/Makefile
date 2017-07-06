@@ -1,6 +1,6 @@
 
 CFLAGS+=        -Wall -g -O2 -I../../include
-LIBS+=		../../src/obj/libpvdid.a
+LIBS+=		../../src/obj/libpvd.a
 
 
 pvd-bound-socks : pvd-bound-socks.o

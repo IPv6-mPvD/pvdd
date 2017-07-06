@@ -24,7 +24,7 @@
 #include <stdarg.h>
 #include <errno.h>
 
-#include "pvdid-utils.h"
+#include "pvd-utils.h"
 
 int	lFlagVerbose = false;
 

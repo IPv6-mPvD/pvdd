@@ -1,14 +1,14 @@
 
 
-SFDAEMON=	pvdid-daemon.c pvdid-netlink.c pvdid-rtnetlink.c pvdid-utils.c
+SFDAEMON=	pvdd.c pvdd-netlink.c pvdd-rtnetlink.c pvd-utils.c
 OFDAEMON=	$(SFDAEMON:%.c=obj/%.o)
 
-SFLIB=		libpvdid.c libpvdid-utils.c
+SFLIB=		libpvd.c libpvd-utils.c
 OFLIB=		$(SFLIB:%.c=obj/%.o)
 
 CFLAGS+=	-Wall -g -O2 -I../include
 
-all :	obj obj/pvdid-daemon obj/libpvdid.so obj/libpvdid.a obj/libpvdid-test
+all :	obj obj/pvdd obj/libpvd.so obj/libpvd.a obj/libpvd-test
 
 AR=	ar
 MKDIR=	mkdir
@@ -16,13 +16,13 @@ RM=	/bin/rm
 CP=	/bin/cp
 
 SRCS=	\
-	libpvdid.c		\
-	libpvdid-test.c		\
-	libpvdid-utils.c	\
-	pvdid-daemon.c		\
-	pvdid-netlink.c		\
-	pvdid-rtnetlink.c		\
-	pvdid-utils.c
+	libpvd.c		\
+	libpvd-test.c		\
+	libpvd-utils.c		\
+	pvdd.c			\
+	pvdd-netlink.c		\
+	pvdd-rtnetlink.c	\
+	pvd-utils.c
 
 obj :
 	$(MKDIR) -p obj
@@ -30,35 +30,35 @@ obj :
 obj/%.o:%.c
 	$(CC) -c $(CFLAGS) -o $@ $<
 
-obj/pvdid-netlink.o:	CFLAGS+=-fno-strict-aliasing
+obj/pvdd-netlink.o:	CFLAGS+=-fno-strict-aliasing
 
-obj/pvdid-daemon : $(OFDAEMON) obj/libpvdid.a
+obj/pvdd : $(OFDAEMON) obj/libpvd.a
 	$(CC) -g -o $@ $^
 
 $(OFLIB) :	CFLAGS+=-fpic -O2
 
-obj/libpvdid.so : $(OFLIB)
+obj/libpvd.so : $(OFLIB)
 	$(CC) -shared -o $@ $^
 
-obj/libpvdid.a : $(OFLIB)
+obj/libpvd.a : $(OFLIB)
 	$(AR) rcv $@ $^
 
-obj/libpvdid-test : obj/libpvdid-test.o obj/libpvdid.a
+obj/libpvd-test : obj/libpvd-test.o obj/libpvd.a
 	$(CC) -g -o $@ $^
 
 clean :
-	$(RM) -rf obj pvdid-daemon libpvdid-test libpvdid.so libpvdid.a *.o
+	$(RM) -rf obj pvdd libpvd-test libpvd.so libpvd.a *.o
 
 install : all
 	$(MKDIR) -p $(DESTDIR)/include $(DESTDIR)/sbin $(DESTDIR)/libexec $(DESTDIR)/lib &&\
-	$(CP) obj/pvdid-daemon $(DESTDIR)/sbin &&\
-	$(CP) obj/libpvdid.so obj/libpvdid.a $(DESTDIR)/lib
+	$(CP) obj/pvdd $(DESTDIR)/sbin &&\
+	$(CP) obj/libpvd.so obj/libpvd.a $(DESTDIR)/lib
 
 cleaninstall :
 	$(RM) -f \
-		$(DESTDIR)/sbin/pvdid-daemon \
-		$(DESTDIR)/lib/libpvdid.so \
-		$(DESTDIR)/lib/libpvdid.a
+		$(DESTDIR)/sbin/pvdd \
+		$(DESTDIR)/lib/libpvd.so \
+		$(DESTDIR)/lib/libpvd.a
 
 cleandepend :
 	$(RM) -f ./obj/Makefile.depend
