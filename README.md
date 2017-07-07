@@ -1,6 +1,6 @@
-# pvdid-daemon
+# pvdd
 
-This utility is intended to gather various pvd related information and to
+This daemon is intended to gather various pvd related information and to
 serve as a transient repository.
 
 This information is coming from multiple sources and can be queried by clients
@@ -9,6 +9,8 @@ in synchronous or asynchronous ways.
 The sources are :
 
 * the kernel itself, via notification of received RA (router advertisements)
+(for non PvD-aware kernels)
+* the kernel via RTNETLINK notifications
 * clients with special credentials (allowing them to update the daemon
 information)
 
@@ -16,10 +18,13 @@ Clients can query the content of the database using a local socket and a
 text based protocol (to help scripted clients to issue requests and parse
 answers).
 
-## Starting pvdid-daemon
+The daemon can also create/update PvD related data (PvD itself, but also
+associated attributes) by calling dedicated new kernel functions.
+
+## Starting pvdd
 
 ~~~~
-pvdId-daemon [-h|--help] <option>*
+pvdd [-h|--help] <option>*
 where option :
         -v|--verbose
         -p|--port <#> : port number for clients requests (default 10101)
@@ -32,7 +37,10 @@ variable to specify another port than the default one
 Note that the __--dir__ option is of no use for now.
 
 ## Kernel interface
-pvdId-daemon (the program) opens a netlink socket with the kernel and configures
+
+### Non PvD-aware kernels
+
+pvdd (the program) opens a netlink socket with the kernel and configures
 it to be notified of ICMPV6 options related to IPV6 RA.
 
 When such messages are received, specific fields are extracted and are used to
@@ -40,7 +48,7 @@ update the internal database.
 
 For now, the fields of interest are :
 
-* the PvD name itself (FQDN) and its characteristics (sequence number, H and L flags)
+* the PvD name itself (FQDN) and its characteristics (sequence number, H and L flags, lifetime)
 * the DNSSL field (list of search domains)
 * the RDNSS field (list of recursive domain servers)
 
@@ -49,7 +57,31 @@ When a RA carries a new PVDID, an entry for this PVDID is created in the databas
 Failure to create the netlink socket (because of insufficient rights) does not prevent the daemon to start.
 This capacity to start without a netlink socket is obviously mostly useful only in debug mode.
 
+### PvD-aware kernels
+
+pvdd assumes that the kernel it is running on is PvD-aware if calling one of the added PvD kernel functions
+does not report any error (the kernel function to retrieve the list of the PvD currently seen by the kernel).
+
+On PvD-aware kernels, the rtnetlink mechanism already provided by the kernel to notify new addresses or routes
+has been extended to report creation/update/deprecation of PvD.
+
+The daemon in this case has access to a set of additional kernel API :
+
+* to retrieve the attributes of a PvD :
+	* PvD name, sequence number, H, L flags, lifetime
+	* associated IPv6 addresses
+	* associated IPv6 routes
+	* RDNSS and DNSSL
+* to create a new PvD
+* to delete a PvD (by setting its lifetime to 0)
+* to modify any of its attributes
+* to update the list of DNSSL and RDNSS (not yet implemented)
+
+Modifying the attributes has the effect of the notification mechanism to be triggered, which,
+in turn, allows the daemon to update its internal database (to reflect the state of the kernel).
+
 ## Clients
+
 The daemon is acting as a server accepting clients connections on a socket bound on the
 localhost address (0.0.0.0), port 10101 by default.
 
@@ -84,7 +116,7 @@ Control clients will not receive any notification on their control connection.
 Example of such control clients can be :
 
 * script triggered by DHCPV6 to provide DNS related information
-* script monitoring extra PVD information (https://\<pvdId\>/pvd.json)
+* script monitoring extra PVD information (https://\<pvd\>/pvd.json)
 
 
 ## Regular clients
@@ -122,7 +154,7 @@ We will describe the messages sent by both clients and the daemon (aka, the serv
 
 All messages must end with a trailing \n. We will omit it in the descriptions below.
 
-PvD are specified by a FQDN (such as pvd.cisco.com for example) \<pvdId\> value.
+PvD are specified by a FQDN (such as pvd.cisco.com for example) \<pvd\> value.
 A handle, aka a numerical value, can be associated to a PvD. This is a uniquely generated
 value which can be used in certain API (to be defined). It is specified by \<pvdIdHandle\>
 in the messages descriptions below.
@@ -160,16 +192,16 @@ The following messages permit a client querying part of the daemon's database :
 
 ~~~~
 PVDID_GET_LIST
-PVDID_GET_ATTRIBUTES <pvdId>
-PVDID_GET_ATTRIBUTE <pvdId> <attributeName>
+PVDID_GET_ATTRIBUTES <pvd>
+PVDID_GET_ATTRIBUTE <pvd> <attributeName>
 ~~~~
 
-Here, \<pvdId\> is a FQDN PvD name.
+Here, \<pvd\> is a FQDN PvD name.
 
 **PVDID\_GET\_LIST** allows retrieving the list of the currently registered PvD.
 **PVDID\_GET\_ATTRIBUTES** allows retrieving ALL attributes for a given PvD.
 
-If \<pvdId\> is * (star), the attributes for all currently registered PvD
+If \<pvd\> is * (star), the attributes for all currently registered PvD
 will be sent back.
 
 #### Subscription messages
@@ -184,15 +216,15 @@ In this case, clients can specify which kinds of notifications are allowed to be
 ~~~~
 PVDID_SUBSCRIBE_NOTIFICATIONS
 PVDID_UNSUBSCRIBE_NOTIFICATIONS
-PVDID_SUBSCRIBE <pvdId>
-PVDID_UNSUBSCRIBE <pvdId>
+PVDID_SUBSCRIBE <pvd>
+PVDID_UNSUBSCRIBE <pvd>
 ~~~~
 
 The first subscription allows general notifications to be received (ie, notifications not
 tied to a specific PvD).
 
 The second subscription message allows notifications to be received for a PvD of interest to
-the client. If \<pvdId\> is * (star), the client subscribes for PvD related changes for all
+the client. If \<pvd\> is * (star), the client subscribes for PvD related changes for all
 current and future PvD.
 
 The notification messages are described below, in the server's section.
@@ -201,11 +233,12 @@ The notification messages are described below, in the server's section.
 Control promoted connections can send the following messages to the server :
 
 ~~~~
-PVDID_CREATE_PVDID <pvdIdHandle> <pvdId>
-PVDID_REMOVE_PVDID <pvdId>
-PVDID_BEGIN_TRANSACTION <pvdId>
-PVDID_SET_ATTRIBUTE <pvdId> <attributeName> <attributeValue>
-PVDID_END_TRANSACTION <pvdId>
+PVDID_CREATE_PVDID <pvdIdHandle> <pvd>
+PVDID_REMOVE_PVDID <pvd>
+PVDID_BEGIN_TRANSACTION <pvd>
+PVDID_SET_ATTRIBUTE <pvd> <attributeName> <attributeValue>
+PVDID_UNSET_ATTRIBUTE <pvd> <attributeName>
+PVDID_END_TRANSACTION <pvd>
 ~~~~
 
 **PVDID\_CREATE\_PVDID** allows registering a new PvD. The \<pvdIdHandle\> value is intended for
@@ -224,11 +257,11 @@ that the notification must only happen once all attributes have been set.
 Thus, a typical attribute modification sequence looks like :
 
 ~~~~
-PVDID_BEGIN_TRANSACTION <pvdId>
-PVDID_SET_ATTRIBUTE <pvdId> <attributeName1> <attributeValue1>
-PVDID_SET_ATTRIBUTE <pvdId> <attributeName2> <attributeValue2>
+PVDID_BEGIN_TRANSACTION <pvd>
+PVDID_SET_ATTRIBUTE <pvd> <attributeName1> <attributeValue1>
+PVDID_SET_ATTRIBUTE <pvd> <attributeName2> <attributeValue2>
 ...
-PVDID_END_TRANSACTION <pvdId>
+PVDID_END_TRANSACTION <pvd>
 ~~~~
 
 **PVDID\_SET\_ATTRIBUTE** messages received outside a transaction will be ignored (this implies that
@@ -247,7 +280,7 @@ For example, to set a JSON string attribute, a control client could use :
 
 ~~~~
 PVDID_BEGIN_MULTILINE
-PVDID_SET_ATTRIBUTE <pvdId> cost
+PVDID_SET_ATTRIBUTE <pvd> cost
 {
 	"currency" : "euro",
 	"cost" : 0.01,
@@ -258,34 +291,37 @@ PVDID_END_MULTILINE
 
 Note that multi-lines sections can not be imbricated.
 
+Unsetting an attribute (**PVDID\_UNSET\_ATTRIBUTE**) does not need to be enclosed in a
+**PVDID\_BEGIN\_TRANSACTION** **PVDID\_END\_TRANSACTION** sequence.
+
 ### Server
 The server generates the following messages :
 
 * Generic (non PvD specific) notifications/replies :
 
 ~~~~
-PVDID_LIST [<pvdId>]* (list of space-separated FQDN)
-PVDID_NEW_PVDID <pvdId>
-PVDID_DEL_PVDID <pvdI>
+PVDID_LIST [<pvd>]* (list of space-separated FQDN)
+PVDID_NEW_PVDID <pvd>
+PVDID_DEL_PVDID <pvd>
 ~~~~
 
 * PvD specific messages :
 
 ~~~~
-PVDID_ATTRIBUTES <pvdId> <attribueValue>
-PVDID_ATTRIBUTE <pvdId> <attributeName> <attribueValue>
+PVDID_ATTRIBUTES <pvd> <attribueValue>
+PVDID_ATTRIBUTE <pvd> <attributeName> <attribueValue>
 ~~~~
 
 or :
 
 ~~~~
 PVDID_BEGIN_MULTILINE
-PVDID_ATTRIBUTES <pvdId>
+PVDID_ATTRIBUTES <pvd>
 ....
 PVDID_END_MULTILINE
 
 PVDID_BEGIN_MULTILINE
-PVDID_ATTRIBUTE <pvdId> <attributeName>
+PVDID_ATTRIBUTE <pvd> <attributeName>
 ....
 PVDID_END_MULTILINE
 ~~~~
@@ -363,4 +399,4 @@ remote clients until the kernel has officially notified that a PvD is alive)
 * Handle errors by sending error messages, especially to clients having done some requests (otherwise,
 these clients could wait forever, which would be annoying for synchronous calls)
 
-#### Last updated : Tue Apr 25 11:33:11 CEST 2017
+#### Last updated : Fri Jul  7 12:08:54 CEST 2017
