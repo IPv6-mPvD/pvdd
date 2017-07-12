@@ -334,7 +334,7 @@ int	pvdid_parse_pvdid_list(char *msg, t_pvdid_list *pvdIdList)
 	return(0);
 }
 
-// pvdid_get_pvdid_list : send a PVDID_GET_LIST message to the daemon
+// pvdid_get_pvdid_list_sync : send a PVDID_GET_LIST message to the daemon
 // It waits for a reply
 int	pvdid_get_pvdid_list_sync(t_pvd_connection *conn, t_pvdid_list *pvdIdList)
 {
@@ -464,7 +464,7 @@ int	pvdid_unsubscribe_pvdid_notifications(t_pvd_connection *conn, char *pvdId)
 	return(SendExact(pvd_connection_fd(conn), s));
 }
 
-// ParseStringArray : given a strings ["...", "...", ...], returns
+// ParseStringArray : given a string ["...", "...", ...], returns
 // the  different ... strings in the given array
 // The substrings must not contain ] or "
 static	int	ParseStringArray(char *msg, char **Array, int Size)
