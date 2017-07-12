@@ -1,11 +1,12 @@
-# pvdid utils
+# pvdd utils
 
-This directory contains some utilities complementing the _pvdid-daemon_.
+This directory contains some utilities complementing _pvdd_.
 
-## pvdid-monitor
+## pvd-monitor.js
+
 This (node) script performs PvD discovery and _pvd.json_ file retrieval.
 
-It handles connections with the pvdid daemon, monitors PvD list notifications
+It handles connections with the _pvdd_ daemon, monitors PvD list notifications
 and the *hFlag* for PvDs, and performs https retrieval (_https://<pvdid>/pvd.json_)
 if needed.
 
@@ -13,25 +14,25 @@ It also performs periodic JSON retrieval based on the *expires* field of the
 retrieved JSON object (or, by default, on the *expires* header value of the https
 response, if any).
 
-If an attempt to retrieve the file has failed, a retry is performed 1 minute later.
+If an attempt to retrieve the file fails, a retry is performed 1 minute later.
 
 It uses the *PVDID\_PORT* environment variable, and defaults to 10101, to establish
-a connection with the local pvdid daemon.
+a connection with the local pvd daemon.
 
-Once a JSON file has been retrieved for a given PvD, it requests the pvdid daemon to
+Once a JSON file has been retrieved for a given PvD, it requests the pvd daemon to
 set/update the *extraInfo* attribute for the given PvD.
 
-## Launching pvdid-monitor
+## Launching pvd-monitor
 
 ~~~~
-pvdid-monitor [-h|--help] <option>*
+pvd-monitor [-h|--help] <option>*
 with option :
         -v|--verbose : outputs extra logs during operation
         -d|--debug : run in a simulation environment (local http server)
         --pvd <pvdId>* : list of space separated pvdId FQDN
 
 In addition to the PvD specified on the command line, the script
-monitors notifications from the pvdid-daemon to discover new PvD.
+monitors notifications from the pvd daemon to discover new PvD.
 
 The list can be empty (and, in fact, should be left empty in a non
 debug environment).
@@ -42,13 +43,20 @@ http://localhost:8000/<pvdId> URL instead of https://<pvdId>/pvd.json
 For this to work, a local http server must be started locally of course
 ~~~~
 
+*pvd-monitor* is a script shell properly starting the nodejs script
+*pvd-monitor.js* by setting the *NODE\_PATH* variable to the right
+value (see the dependency on the _pvdd_ node package below).
+
 
 ## Dependencies
+
 The following node modules shall be installed :
 
 * net (should be installed by default)
 * http (should be installed by default)
 * https (should be installed by default)
 * node-schedule (shall be installed : npm install node-schedule)
-
+* pvdd : this package is provided by this repository and should not
+need to be installed if the nodejs script is started via the shell
+script
 
