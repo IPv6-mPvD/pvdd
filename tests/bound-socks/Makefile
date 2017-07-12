@@ -1,4 +1,6 @@
 
+include ../../Makefile.env
+
 CFLAGS+=        -Wall -g -O2 -I../../include
 LIBS+=		../../src/obj/libpvd.a
 

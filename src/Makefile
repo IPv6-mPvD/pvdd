@@ -1,4 +1,5 @@
 
+include ../Makefile.env
 
 SFDAEMON=	pvdd.c pvdd-netlink.c pvdd-rtnetlink.c pvd-utils.c
 OFDAEMON=	$(SFDAEMON:%.c=obj/%.o)
@@ -54,7 +55,7 @@ install : all
 	$(CP) obj/pvdd $(DESTDIR)/sbin &&\
 	$(CP) obj/libpvd.so obj/libpvd.a $(DESTDIR)/lib
 
-cleaninstall :
+uninstall cleaninstall :
 	$(RM) -f \
 		$(DESTDIR)/sbin/pvdd \
 		$(DESTDIR)/lib/libpvd.so \
