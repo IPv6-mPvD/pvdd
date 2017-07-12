@@ -7,7 +7,7 @@ This directory contains some utilities complementing _pvdd_.
 This (node) script performs PvD discovery and _pvd.json_ file retrieval.
 
 It handles connections with the _pvdd_ daemon, monitors PvD list notifications
-and the *hFlag* for PvDs, and performs https retrieval (_https://<pvdid>/pvd.json_)
+and the *hFlag* for PvDs, and performs https retrieval (_https://\<pvdid\>/pvd.json_)
 if needed.
 
 It also performs periodic JSON retrieval based on the *expires* field of the
