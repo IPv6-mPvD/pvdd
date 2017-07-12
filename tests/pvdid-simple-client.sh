@@ -1,6 +1,6 @@
 #!/bin/sh
 
-source `dirname $0`/check-nc.sh
+. `dirname $0`/check-nc.sh
 
 {
 	echo PVDID_GET_ATTRIBUTES pvd.cisco.com

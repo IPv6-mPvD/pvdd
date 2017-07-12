@@ -1,6 +1,6 @@
 #!/bin/sh
 
-source `dirname $0`/check-nc.sh
+. `dirname $0`/check-nc.sh
 
 if [ $# != 2 ]
 then
