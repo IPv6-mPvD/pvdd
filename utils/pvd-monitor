@@ -1,0 +1,8 @@
+#!/bin/sh
+
+d=`dirname $0`
+
+export NODE_PATH
+NODE_PATH=$d/../bindings/javascript/pvdd:/usr/local/lib/node_modules:/usr/lib/node_modules
+
+exec $d/pvd-monitor.js "$@"
