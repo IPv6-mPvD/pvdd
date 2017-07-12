@@ -1,5 +1,7 @@
 #!/bin/sh
 
+source `dirname $0`/check-nc.sh
+
 {
 	echo PVDID_CONNECTION_PROMOTE_CONTROL
 	echo PVDID_BEGIN_TRANSACTION pvd.cisco.com
@@ -10,5 +12,5 @@
 	echo '		"name" : "orange.fr"'
 	echo '	}'
 	echo PVDID_END_TRANSACTION pvd.cisco.com
-} | nc 0.0.0.0 10101
+} | $NC 0.0.0.0 10101
 

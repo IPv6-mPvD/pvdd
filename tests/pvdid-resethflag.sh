@@ -1,5 +1,7 @@
 #!/bin/sh
 
+source `dirname $0`/check-nc.sh
+
 if [ $# != 1 ]
 then
 	echo "usage : $0 pvdId"
@@ -11,5 +13,5 @@ fi
 	echo PVDID_BEGIN_TRANSACTION "$@"
 	echo PVDID_SET_ATTRIBUTE "$@" hFlag 0
 	echo PVDID_END_TRANSACTION "$@"
-} | nc 0.0.0.0 10101
+} | $NC 0.0.0.0 10101
 
