@@ -10,3 +10,5 @@ obj
 node_modules
 pvd-bound-socks
 pvd-bound-socks.o
+pvd-*.tgz
+npm-debug.log
