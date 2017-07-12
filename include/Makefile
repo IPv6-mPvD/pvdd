@@ -1,10 +1,12 @@
 
+include ../Makefile.env
+
 $(MAKECMDGOALS) :
 
 install :
 	/bin/mkdir -p $(DESTDIR)/include &&\
-	/bin/cp libpvdid.h $(DESTDIR)/include
+	/bin/cp libpvd.h $(DESTDIR)/include
 
-cleaninstall :
+uninstall cleaninstall :
 	/bin/rm -f \
-		$(DESTDIR)/include/libpvdid.h
+		$(DESTDIR)/include/libpvd.h
