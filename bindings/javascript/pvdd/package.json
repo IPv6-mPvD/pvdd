@@ -1,0 +1,18 @@
+{
+  "name": "pvdd",
+  "version": "1.0.0",
+  "description": "this package hides most of the internal protocol used to communicate with the pvdd daemon",
+  "main": "pvdd.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "pvdd"
+  ],
+  "author": "Thierry Danis <tdanis@free.fr>",
+  "license": "Apache 2.0",
+  "dependencies": {
+    "net": "~1.0.2",
+    "events": "~1.1.1"
+  }
+}

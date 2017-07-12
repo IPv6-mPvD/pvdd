@@ -1,0 +1,8 @@
+Wed Jul 12 12:43:45 CEST 2017
+=============================
+To generate a npm package out of pvdd/pvdd.js, make sure
+to follow these steps (working in the pvdd sub-directory) :
+1) when appropriate, change the version :
+	+ either manually (in the package.json file)
+	+ either automatically : npm version patch
+2) when adding a new require(X) dependency : npm install --save X
