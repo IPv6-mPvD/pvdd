@@ -177,7 +177,7 @@ void process_ra(unsigned char *msg,
 {
 	int i;
 	char addr_str[INET6_ADDRSTRLEN];
-	char pvdId[PVDNAMSIZ];
+	char pvdname[PVDNAMSIZ];
 	int pvdIdSeq = -1;
 	int pvdIdH = 0;
 	int pvdIdL = 0;
@@ -197,7 +197,7 @@ void process_ra(unsigned char *msg,
 		addr != NULL ? &addr->sin6_addr : sin6_addr,
 		addr_str, sizeof(addr_str));
 
-	pvdId[0] = '\0';
+	pvdname[0] = '\0';
 
 	// The message begins with a struct nd_router_advert structure
 	struct nd_router_advert *radvert = (struct nd_router_advert *)msg;
@@ -346,7 +346,7 @@ void process_ra(unsigned char *msg,
 				return;
 			DLOG("ND_OPT_PVDID present in RA\n");
 
-			if (pvdId[0] != '\0') {
+			if (pvdname[0] != '\0') {
 				DLOG("PVDID option already defined. Ignoring this one\n");
 				break;
 			}
@@ -375,7 +375,7 @@ void process_ra(unsigned char *msg,
 			}
 			// Hopefully ends with a '\0'
 
-			strcpy(pvdId, (char *) &pvd->nd_opt_pvdid_name[1]);
+			strcpy(pvdname, (char *) &pvd->nd_opt_pvdid_name[1]);
 
 			break;
 		}
@@ -392,18 +392,18 @@ void process_ra(unsigned char *msg,
 	// If we have seen a PvdId, we will update some fields of interest
 	// However, if the RA is becoming invalid, we must notify that the PVD
 	// has disappeared !
-	if (pvdId[0] == '\0') {
+	if (pvdname[0] == '\0') {
 		// No PvD option defined in this RA
 		goto Exit;
 	}
 
 	if (radvert->nd_ra_router_lifetime == 0) {
 		DLOG("RA becoming invalidated. Unregistering\n");
-		UnregisterPvdId(pvdId);
+		UnregisterPvdId(pvdname);
 		goto Exit;	// Release allocated structures
 	}
 
-	if ((PtPvdId = PvdIdBeginTransaction(pvdId)) == NULL) {
+	if ((PtPvdId = PvdIdBeginTransaction(pvdname)) == NULL) {
 		return;
 	}
 

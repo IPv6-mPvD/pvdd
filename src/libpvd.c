@@ -318,17 +318,17 @@ int	pvdid_get_pvdid_list(t_pvd_connection *conn)
 int	pvdid_parse_pvdid_list(char *msg, t_pvdid_list *pvdIdList)
 {
 	char	*pts = NULL;
-	char	*pvdId = NULL;
+	char	*pvdname = NULL;
 
 	pvdIdList->nPvdId = 0;
 
-	for (;(pvdId = strtok_r(msg, " ", &pts)) != NULL; msg = NULL) {
+	for (;(pvdname = strtok_r(msg, " ", &pts)) != NULL; msg = NULL) {
 		// Ignore empty names (consecutive spaces)
-		if (*pvdId == '\0') {
+		if (*pvdname == '\0') {
 			continue;
 		}
 		if (pvdIdList->nPvdId < DIM(pvdIdList->pvdIdList)) {
-			pvdIdList->pvdIdList[pvdIdList->nPvdId++] = strdup(pvdId);
+			pvdIdList->pvdIdList[pvdIdList->nPvdId++] = strdup(pvdname);
 		}
 	}
 	return(0);
@@ -357,11 +357,11 @@ int	pvdid_get_pvdid_list_sync(t_pvd_connection *conn, t_pvdid_list *pvdIdList)
 	return(rc);
 }
 
-int	pvdid_get_attributes(t_pvd_connection *conn, char *pvdId)
+int	pvdid_get_attributes(t_pvd_connection *conn, char *pvdname)
 {
 	char	s[2048];
 
-	snprintf(s, sizeof(s) - 1, "PVDID_GET_ATTRIBUTES %s\n", pvdId);
+	snprintf(s, sizeof(s) - 1, "PVDID_GET_ATTRIBUTES %s\n", pvdname);
 	s[sizeof(s) - 1] = '\0';
 
 	return(SendExact(pvd_connection_fd(conn), s));
@@ -372,7 +372,7 @@ int	pvdid_get_attributes(t_pvd_connection *conn, char *pvdId)
 // caller
 int	pvdid_get_attributes_sync(
 		t_pvd_connection *conn,
-		char *pvdId,
+		char *pvdname,
 		char **attributes)
 {
 	t_pvd_connection	*newconn = NULL;
@@ -382,9 +382,9 @@ int	pvdid_get_attributes_sync(
 	*attributes = NULL;
 
 	if ((newconn = pvdid_get_binary_socket(conn)) != NULL) {
-		if (pvdid_get_attributes(newconn, pvdId) == 0 &&
+		if (pvdid_get_attributes(newconn, pvdname) == 0 &&
 		    ReadMsg(newconn->fd, &msg) == 0) {
-			sprintf(Pattern, "PVDID_ATTRIBUTES %s", pvdId);
+			sprintf(Pattern, "PVDID_ATTRIBUTES %s", pvdname);
 
 			if (strncmp(msg, Pattern, strlen(Pattern)) == 0) {
 				*attributes = strdup(StripSpaces(&msg[strlen(Pattern)]));
@@ -396,11 +396,11 @@ int	pvdid_get_attributes_sync(
 	return(*attributes == NULL ? -1 : 0);
 }
 
-int	pvdid_get_attribute(t_pvd_connection *conn, char *pvdId, char *attrName)
+int	pvdid_get_attribute(t_pvd_connection *conn, char *pvdname, char *attrName)
 {
 	char	s[2048];
 
-	snprintf(s, sizeof(s) - 1, "PVDID_GET_ATTRIBUTE %s %s\n", pvdId, attrName);
+	snprintf(s, sizeof(s) - 1, "PVDID_GET_ATTRIBUTE %s %s\n", pvdname, attrName);
 	s[sizeof(s) - 1] = '\0';
 
 	return(SendExact(pvd_connection_fd(conn), s));
@@ -408,7 +408,7 @@ int	pvdid_get_attribute(t_pvd_connection *conn, char *pvdId, char *attrName)
 
 int	pvdid_get_attribute_sync(
 		t_pvd_connection *conn,
-		char *pvdId, 
+		char *pvdname, 
 		char *attrName, char **attrValue)
 {
 	t_pvd_connection	*newconn = NULL;
@@ -418,9 +418,9 @@ int	pvdid_get_attribute_sync(
 	*attrValue = NULL;
 
 	if ((newconn = pvdid_get_binary_socket(conn)) != NULL) {
-		if (pvdid_get_attribute(newconn, pvdId, attrName) == 0 &&
+		if (pvdid_get_attribute(newconn, pvdname, attrName) == 0 &&
 		    ReadMsg(newconn->fd, &msg) == 0) {
-			sprintf(Pattern, "PVDID_ATTRIBUTE %s %s", pvdId, attrName);
+			sprintf(Pattern, "PVDID_ATTRIBUTE %s %s", pvdname, attrName);
 
 			if (strncmp(msg, Pattern, strlen(Pattern)) == 0) {
 				*attrValue = strdup(StripSpaces(&msg[strlen(Pattern)]));
@@ -444,21 +444,21 @@ int	pvdid_unsubscribe_notifications(t_pvd_connection *conn)
 	return(SendExact(pvd_connection_fd(conn), "PVDID_UNSUBSCRIBE_NOTIFICATIONS\n"));
 }
 
-int	pvdid_subscribe_pvdid_notifications(t_pvd_connection *conn, char *pvdId)
+int	pvdid_subscribe_pvdid_notifications(t_pvd_connection *conn, char *pvdname)
 {
 	char	s[2048];
 
-	snprintf(s, sizeof(s) - 1, "PVDID_SUBSCRIBE %s\n", pvdId);
+	snprintf(s, sizeof(s) - 1, "PVDID_SUBSCRIBE %s\n", pvdname);
 	s[sizeof(s) - 1] = '\0';
 
 	return(SendExact(pvd_connection_fd(conn), s));
 }
 
-int	pvdid_unsubscribe_pvdid_notifications(t_pvd_connection *conn, char *pvdId)
+int	pvdid_unsubscribe_pvdid_notifications(t_pvd_connection *conn, char *pvdname)
 {
 	char	s[2048];
 
-	snprintf(s, sizeof(s) - 1, "PVDID_UNSUBSCRIBE %s\n", pvdId);
+	snprintf(s, sizeof(s) - 1, "PVDID_UNSUBSCRIBE %s\n", pvdname);
 	s[sizeof(s) - 1] = '\0';
 
 	return(SendExact(pvd_connection_fd(conn), s));
@@ -500,7 +500,7 @@ static	int	ParseStringArray(char *msg, char **Array, int Size)
 
 // pvdid_parse_rdnss : msq contains a JSON array of strings
 // The string can either be alone on the line, either preceded
-// by PVDID_ATTRIBUTE <pvdId> RDNSS. These strings are in6 addresses
+// by PVDID_ATTRIBUTE <pvdname> RDNSS. These strings are in6 addresses
 int	pvdid_parse_rdnss(char *msg, t_pvdid_rdnss *PtRdnss)
 {
 	char	Rdnss[2048];
@@ -526,7 +526,7 @@ void	pvdid_release_rdnss(t_pvdid_rdnss *PtRdnss)
 
 // pvdid_parse_dnssl : msq contains a JSON array of strings
 // The string can either be alone on the line, either preceded
-// by PVDID_ATTRIBUTE <pvdId> DNSSL
+// by PVDID_ATTRIBUTE <pvdname> DNSSL
 int	pvdid_parse_dnssl(char *msg, t_pvdid_dnssl *PtDnssl)
 {
 	char	Dnssl[2048];
@@ -550,18 +550,18 @@ void	pvdid_release_dnssl(t_pvdid_dnssl *PtDnssl)
 	PtDnssl->nDnssl = 0;
 }
 
-int	pvdid_get_rdnss(t_pvd_connection *conn, char *pvdId)
+int	pvdid_get_rdnss(t_pvd_connection *conn, char *pvdname)
 {
 	char	s[2048];
 
-	sprintf(s, "PVDID_GET_ATTRIBUTE %s RDNSS\n", pvdId);
+	sprintf(s, "PVDID_GET_ATTRIBUTE %s RDNSS\n", pvdname);
 
 	return(SendExact(pvd_connection_fd(conn), s));
 }
 
 int	pvdid_get_rdnss_sync(
 		t_pvd_connection *conn,
-		char *pvdId,
+		char *pvdname,
 		t_pvdid_rdnss *PtRdnss)
 {
 	t_pvd_connection	*newconn = NULL;
@@ -570,9 +570,9 @@ int	pvdid_get_rdnss_sync(
 	char			Pattern[2048];
 
 	if ((newconn = pvdid_get_binary_socket(conn)) != NULL) {
-		if (pvdid_get_rdnss(newconn, pvdId) == 0 &&
+		if (pvdid_get_rdnss(newconn, pvdname) == 0 &&
 		    ReadMsg(newconn->fd, &msg) == 0) {
-			sprintf(Pattern, "PVDID_ATTRIBUTE %s RDNSS\n", pvdId);
+			sprintf(Pattern, "PVDID_ATTRIBUTE %s RDNSS\n", pvdname);
 
 			if (strncmp(msg, Pattern, strlen(Pattern)) == 0) {
 				rc = pvdid_parse_rdnss(&msg[strlen(Pattern)], PtRdnss);
@@ -584,18 +584,18 @@ int	pvdid_get_rdnss_sync(
 	return(rc);
 }
 
-int	pvdid_get_dnssl(t_pvd_connection *conn, char *pvdId)
+int	pvdid_get_dnssl(t_pvd_connection *conn, char *pvdname)
 {
 	char	s[2048];
 
-	sprintf(s, "PVDID_GET_ATTRIBUTE %s DNSSL\n", pvdId);
+	sprintf(s, "PVDID_GET_ATTRIBUTE %s DNSSL\n", pvdname);
 
 	return(SendExact(pvd_connection_fd(conn), s));
 }
 
 int	pvdid_get_dnssl_sync(
 		t_pvd_connection *conn,
-		char *pvdId,
+		char *pvdname,
 		t_pvdid_dnssl *PtDnssl)
 {
 	t_pvd_connection	*newconn = NULL;
@@ -604,9 +604,9 @@ int	pvdid_get_dnssl_sync(
 	char			Pattern[2048];
 
 	if ((newconn = pvdid_get_binary_socket(conn)) != NULL) {
-		if (pvdid_get_dnssl(newconn, pvdId) == 0 &&
+		if (pvdid_get_dnssl(newconn, pvdname) == 0 &&
 		    ReadMsg(newconn->fd, &msg) == 0) {
-			sprintf(Pattern, "PVDID_ATTRIBUTE %s DNSSL\n", pvdId);
+			sprintf(Pattern, "PVDID_ATTRIBUTE %s DNSSL\n", pvdname);
 
 			if (strncmp(msg, Pattern, strlen(Pattern)) == 0) {
 				rc = pvdid_parse_dnssl(&msg[strlen(Pattern)], PtDnssl);

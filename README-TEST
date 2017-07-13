@@ -7,11 +7,11 @@ The 3 commands below must be started in different terminals or in background.
 Start httpsServer.js :
 node tests/httpsServer.js
 
-Start the pvdid-daemon :
-src/obj/pvdid-daemon -v
+Start the pvdd daemon
+src/obj/pvdd -v
 
 Start the monitoring daemon in debug mode :
-utils/pvdid-monitor --verbose --debug --pvd pvd.cisco.com pvd.orange.com localhost
+utils/pvd-monitor --verbose --debug --pvd pvd.cisco.com pvd.orange.com localhost
 
 ========================================
 =           One shot scripts           =
@@ -34,4 +34,4 @@ Start a simple client :
 tests/pvdid-simple-client-2.sh
 
 Start the libpvdid test program :
-src/obj/libpvdid-test
+src/obj/libpvd-test

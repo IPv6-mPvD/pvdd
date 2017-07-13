@@ -215,13 +215,13 @@ Here are they :
 extern int	pvdid_get_pvdid_list_sync(
 			t_pvd_connection *conn, t_pvdid_list *pvdIdList);
 extern int	pvdid_get_attributes_sync(
-			t_pvd_connection *conn, char *pvdId, char **attributes);
+			t_pvd_connection *conn, char *pvdname, char **attributes);
 extern int	pvdid_get_attribute_sync(
-			t_pvd_connection *conn, char *pvdId, char *attrName, char **attrValue);
+			t_pvd_connection *conn, char *pvdname, char *attrName, char **attrValue);
 extern int	pvdid_get_rdnss_sync(
-			t_pvd_connection *conn, char *pvdId, t_pvdid_rdnss *PtRdnss);
+			t_pvd_connection *conn, char *pvdname, t_pvdid_rdnss *PtRdnss);
 extern int	pvdid_get_dnssl_sync(
-			t_pvd_connection *conn, char *pvdId, t_pvdid_dnssl *PtDnssl);
+			t_pvd_connection *conn, char *pvdname, t_pvdid_dnssl *PtDnssl);
 ~~~~
 
 The _pvdid\_get\_attributes\_sync_ function returns all the attributes collected
@@ -267,14 +267,14 @@ The functions are :
 
 ~~~~
 extern int	pvdid_get_pvdid_list(t_pvd_connection *conn);
-extern int	pvdid_get_attributes(t_pvd_connection *conn, char *pvdId);
-extern int	pvdid_get_attribute(t_pvd_connection *conn, char *pvdId, char *attrName);
+extern int	pvdid_get_attributes(t_pvd_connection *conn, char *pvdname);
+extern int	pvdid_get_attribute(t_pvd_connection *conn, char *pvdname, char *attrName);
 extern int	pvdid_subscribe_notifications(t_pvd_connection *conn);
 extern int	pvdid_unsubscribe_notifications(t_pvd_connection *conn);
-extern int	pvdid_subscribe_pvdid_notifications(t_pvd_connection *conn, char *pvdId);
-extern int	pvdid_unsubscribe_pvdid_notifications(t_pvd_connection *conn, char *pvdId);
-extern int	pvdid_get_rdnss(t_pvd_connection *conn, char *pvdId);
-extern int	pvdid_get_dnssl(t_pvd_connection *conn, char *pvdId);
+extern int	pvdid_subscribe_pvdid_notifications(t_pvd_connection *conn, char *pvdname);
+extern int	pvdid_unsubscribe_pvdid_notifications(t_pvd_connection *conn, char *pvdname);
+extern int	pvdid_get_rdnss(t_pvd_connection *conn, char *pvdname);
+extern int	pvdid_get_dnssl(t_pvd_connection *conn, char *pvdname);
 ~~~~
 
 Following requests, the daemon should send replies. The format of these replies
@@ -371,14 +371,14 @@ Some attributes are well known. They can be found in the JSON returned structure
 
 They are :
 
-+ __pvdId__ : the PvD name (a string)
-+ __pvdIdHandle__ : a unique number allocated by the kernel to this PvD instance
++ __name__ : the PvD name (a string)
++ __id__ : a unique number allocated by the kernel to this PvD instance
 + __sequenceNumber__ : the PvD sequence number (an integer between 0 and 15 [4 bits])
 + __hFlag__ : the h flag of the PvD (0 or 1)
 + __lFlag__ : the l flag of the PvD (0 or 1)
 + __lifetime__ : the expire value of the PvD (an integer)
-+ __RDNSS__ : the list of DNS recursive servers associated to this PvD (array of strings)
-+ __DNSSL__ : the list of DNS lookup domains (array of strings)
++ __rdnss__ : the list of DNS recursive servers associated to this PvD (array of strings)
++ __dnssl__ : the list of DNS lookup domains (array of strings)
 + __extraInfo__ : the JSON structure retrieved from https://\<pvdid\>/pvd.json
 
 

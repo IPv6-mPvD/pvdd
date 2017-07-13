@@ -4,7 +4,7 @@
 
 if [ $# != 1 ]
 then
-	echo "usage : $0 pvdId"
+	echo "usage : $0 pvdname"
 	exit 1
 fi
 

@@ -116,7 +116,7 @@ Control clients will not receive any notification on their control connection.
 Example of such control clients can be :
 
 * script triggered by DHCPV6 to provide DNS related information
-* script monitoring extra PVD information (https://\<pvd\>/pvd.json)
+* script monitoring extra PVD information (https://\<pvdname\>/pvd.json)
 
 
 ## Regular clients
@@ -154,9 +154,9 @@ We will describe the messages sent by both clients and the daemon (aka, the serv
 
 All messages must end with a trailing \n. We will omit it in the descriptions below.
 
-PvD are specified by a FQDN (such as pvd.cisco.com for example) \<pvd\> value.
-A handle, aka a numerical value, can be associated to a PvD. This is a uniquely generated
-value which can be used in certain API (to be defined). It is specified by \<pvdIdHandle\>
+PvD are specified by a FQDN (such as pvd.cisco.com for example) \<pvdname\> value.
+An id, aka a numerical value, can be associated to a PvD. This is a uniquely generated
+value which can be used in certain API (to be defined). It is specified by \<pvdid\>
 in the messages descriptions below.
 
 ### Clients
@@ -192,16 +192,16 @@ The following messages permit a client querying part of the daemon's database :
 
 ~~~~
 PVDID_GET_LIST
-PVDID_GET_ATTRIBUTES <pvd>
-PVDID_GET_ATTRIBUTE <pvd> <attributeName>
+PVDID_GET_ATTRIBUTES <pvdname>
+PVDID_GET_ATTRIBUTE <pvdname> <attributeName>
 ~~~~
 
-Here, \<pvd\> is a FQDN PvD name.
+Here, \<pvdname\> is a FQDN PvD name.
 
 **PVDID\_GET\_LIST** allows retrieving the list of the currently registered PvD.
 **PVDID\_GET\_ATTRIBUTES** allows retrieving ALL attributes for a given PvD.
 
-If \<pvd\> is * (star), the attributes for all currently registered PvD
+If \<pvdname\> is * (star), the attributes for all currently registered PvD
 will be sent back.
 
 #### Subscription messages
@@ -216,15 +216,15 @@ In this case, clients can specify which kinds of notifications are allowed to be
 ~~~~
 PVDID_SUBSCRIBE_NOTIFICATIONS
 PVDID_UNSUBSCRIBE_NOTIFICATIONS
-PVDID_SUBSCRIBE <pvd>
-PVDID_UNSUBSCRIBE <pvd>
+PVDID_SUBSCRIBE <pvdname>
+PVDID_UNSUBSCRIBE <pvdname>
 ~~~~
 
 The first subscription allows general notifications to be received (ie, notifications not
 tied to a specific PvD).
 
 The second subscription message allows notifications to be received for a PvD of interest to
-the client. If \<pvd\> is * (star), the client subscribes for PvD related changes for all
+the client. If \<pvdname\> is * (star), the client subscribes for PvD related changes for all
 current and future PvD.
 
 The notification messages are described below, in the server's section.
@@ -233,15 +233,15 @@ The notification messages are described below, in the server's section.
 Control promoted connections can send the following messages to the server :
 
 ~~~~
-PVDID_CREATE_PVDID <pvdIdHandle> <pvd>
-PVDID_REMOVE_PVDID <pvd>
-PVDID_BEGIN_TRANSACTION <pvd>
-PVDID_SET_ATTRIBUTE <pvd> <attributeName> <attributeValue>
-PVDID_UNSET_ATTRIBUTE <pvd> <attributeName>
-PVDID_END_TRANSACTION <pvd>
+PVDID_CREATE_PVDID <pvdid> <pvdname>
+PVDID_REMOVE_PVDID <pvdname>
+PVDID_BEGIN_TRANSACTION <pvdname>
+PVDID_SET_ATTRIBUTE <pvdname> <attributeName> <attributeValue>
+PVDID_UNSET_ATTRIBUTE <pvdname> <attributeName>
+PVDID_END_TRANSACTION <pvdname>
 ~~~~
 
-**PVDID\_CREATE\_PVDID** allows registering a new PvD. The \<pvdIdHandle\> value is intended for
+**PVDID\_CREATE\_PVDID** allows registering a new PvD. The \<pvdid\> value is intended for
 future use and can be set to 0 for now.
 
 **PVDID\_REMOVE\_PVDID** unregisters a PvD. Note that clarifications still need to be done
@@ -257,11 +257,11 @@ that the notification must only happen once all attributes have been set.
 Thus, a typical attribute modification sequence looks like :
 
 ~~~~
-PVDID_BEGIN_TRANSACTION <pvd>
-PVDID_SET_ATTRIBUTE <pvd> <attributeName1> <attributeValue1>
-PVDID_SET_ATTRIBUTE <pvd> <attributeName2> <attributeValue2>
+PVDID_BEGIN_TRANSACTION <pvdname>
+PVDID_SET_ATTRIBUTE <pvdname> <attributeName1> <attributeValue1>
+PVDID_SET_ATTRIBUTE <pvdname> <attributeName2> <attributeValue2>
 ...
-PVDID_END_TRANSACTION <pvd>
+PVDID_END_TRANSACTION <pvdname>
 ~~~~
 
 **PVDID\_SET\_ATTRIBUTE** messages received outside a transaction will be ignored (this implies that
@@ -280,7 +280,7 @@ For example, to set a JSON string attribute, a control client could use :
 
 ~~~~
 PVDID_BEGIN_MULTILINE
-PVDID_SET_ATTRIBUTE <pvd> cost
+PVDID_SET_ATTRIBUTE <pvdname> cost
 {
 	"currency" : "euro",
 	"cost" : 0.01,
@@ -300,28 +300,28 @@ The server generates the following messages :
 * Generic (non PvD specific) notifications/replies :
 
 ~~~~
-PVDID_LIST [<pvd>]* (list of space-separated FQDN)
-PVDID_NEW_PVDID <pvd>
-PVDID_DEL_PVDID <pvd>
+PVDID_LIST [<pvdname>]* (list of space-separated FQDN)
+PVDID_NEW_PVDID <pvdname>
+PVDID_DEL_PVDID <pvdname>
 ~~~~
 
 * PvD specific messages :
 
 ~~~~
-PVDID_ATTRIBUTES <pvd> <attribueValue>
-PVDID_ATTRIBUTE <pvd> <attributeName> <attribueValue>
+PVDID_ATTRIBUTES <pvdname> <attribueValue>
+PVDID_ATTRIBUTE <pvdname> <attributeName> <attribueValue>
 ~~~~
 
 or :
 
 ~~~~
 PVDID_BEGIN_MULTILINE
-PVDID_ATTRIBUTES <pvd>
+PVDID_ATTRIBUTES <pvdname>
 ....
 PVDID_END_MULTILINE
 
 PVDID_BEGIN_MULTILINE
-PVDID_ATTRIBUTE <pvd> <attributeName>
+PVDID_ATTRIBUTE <pvdname> <attributeName>
 ....
 PVDID_END_MULTILINE
 ~~~~
@@ -376,8 +376,8 @@ The **PVDID\_GET\_ATTRIBUTES pvd.cisco.com** query results in the following (tot
 PVDID_BEGIN_MULTILINE
 PVDID_ATTRIBUTES pvd.cisco.com
 {
-        "pvdId" : "pvd.cisco.com",
-        "pvdIdHandle" : 100,
+        "name" : "pvd.cisco.com",
+        "id" : 100,
         "sequenceNumber" : 0,
         "hFlag" : 1,
         "lFlag" : 0,

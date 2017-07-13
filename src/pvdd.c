@@ -97,7 +97,7 @@
 /* types definitions --------------------------------------------- */
 typedef	struct t_PvdIdNameList
 {
-	char	*pvdId;	// strduped
+	char	*pvdname;	// strduped
 	struct t_PvdIdNameList	*next;
 }	t_PvdIdNameList;
 
@@ -118,8 +118,8 @@ typedef	struct {
 }	t_PvdAttribute;
 
 typedef	struct t_PvdId {
-	char	*pvdId;	// strduped
-	int	pvdIdHandle;
+	char	*pvdname;	// strduped
+	int	pvdid;
 	int	dirty;
 	t_PvdAttribute Attributes[MAXATTRIBUTES];
 
@@ -156,7 +156,7 @@ static	int	lKernelHasPvdSupport = false;
 
 /* functions definitions ----------------------------------------- */
 static	int	NotifyPvdIdAttributes(t_PvdId *PtPvdId);
-static	int	RemoveSubscription(int ix, char *pvdId);
+static	int	RemoveSubscription(int ix, char *pvdname);
 
 static	int	usage(char *s)
 {
@@ -398,30 +398,30 @@ static	void	HandleConnection(int serverSock)
 	}
 }
 
-// GetPvdId : given a pvdId, return the address of the pvdId structure
-static	t_PvdId	*GetPvdId(char *pvdId)
+// GetPvdId : given a pvdname, return the address of the pvd structure
+static	t_PvdId	*GetPvdId(char *pvdname)
 {
 	t_PvdId	*PtPvdId;
 
-	if (pvdId == NULL) {
+	if (pvdname == NULL) {
 		return(NULL);
 	}
 
 	for (PtPvdId = lFirstPvdId; PtPvdId != NULL; PtPvdId = PtPvdId->next) {
-		if (EQSTR(PtPvdId->pvdId, pvdId)) {
+		if (EQSTR(PtPvdId->pvdname, pvdname)) {
 			return(PtPvdId);
 		}
 	}
 
-	DLOG("unknown pvdId (%s)\n", pvdId);
+	DLOG("unknown pvd (%s)\n", pvdname);
 
 	return(NULL);
 }
 
-// RemoveSubscription : remove a given pvdId from the list of subscribed pvdId
-// for a client. Special case : if the given pvdId is NULL, the whole subscription
+// RemoveSubscription : remove a given pvdname from the list of subscribed pvd
+// for a client. Special case : if the given pvdname is NULL, the whole subscription
 // list is released
-static	int	RemoveSubscription(int ix, char *pvdId)
+static	int	RemoveSubscription(int ix, char *pvdname)
 {
 	t_PvdIdNameList	*pt = lTabClients[ix].Subscription;
 	t_PvdIdNameList	*ptNext = NULL;
@@ -430,8 +430,8 @@ static	int	RemoveSubscription(int ix, char *pvdId)
 	while (pt != NULL) {
 		ptNext = pt->next;
 
-		if (EQSTR(pt->pvdId, pvdId)) {
-			free(pt->pvdId);
+		if (EQSTR(pt->pvdname, pvdname)) {
+			free(pt->pvdname);
 			free(pt);
 			if (ptPrev == NULL) {
 				lTabClients[ix].Subscription = ptNext;
@@ -456,7 +456,7 @@ static	void	ReleaseSubscriptionsList(int ix)
 
 	while (pt != NULL) {
 		ptNext = pt->next;
-		free(pt->pvdId);
+		free(pt->pvdname);
 		free(pt);
 		pt = ptNext;
 	}
@@ -486,13 +486,13 @@ static	void	ReleaseClient(int ix)
 
 // AddSubscription : a client has requested to be notified for changes on a
 // given pvdid
-static	int	AddSubscription(int ix, char *pvdId)
+static	int	AddSubscription(int ix, char *pvdname)
 {
 	t_PvdIdNameList	*pt = lTabClients[ix].Subscription;
 
-	// Verifiy that the client has not already subscribed to this pvdId
+	// Verifiy that the client has not already subscribed to this pvd
 	while (pt != NULL) {
-		if (EQSTR(pt->pvdId, pvdId)) {
+		if (EQSTR(pt->pvdname, pvdname)) {
 			return(0);
 		}
 		pt = pt->next;
@@ -503,7 +503,7 @@ static	int	AddSubscription(int ix, char *pvdId)
 		DLOG("AddSubscription : memory overflow\n");
 		return(-1);
 	}
-	if ((pt->pvdId = strdup(pvdId)) == NULL) {
+	if ((pt->pvdname = strdup(pvdname)) == NULL) {
 		free(pt);
 		DLOG("AddSubscription : memory overflow\n");
 		return(-1);
@@ -526,7 +526,7 @@ static	int	WriteString(int s, char *str, int binary)
 	return(write(s, str, l) == l);
 }
 
-// SendPvdIdList : send the current list of pvdId to a client that
+// SendPvdIdList : send the current list of pvd to a client that
 // has requested it
 static	int	SendPvdIdList(int s, int binary)
 {
@@ -537,7 +537,7 @@ static	int	SendPvdIdList(int s, int binary)
 	sprintf(msg, "PVDID_LIST");
 	for (PtPvdId = lFirstPvdId; PtPvdId != NULL; PtPvdId = PtPvdId->next) {
 		strcat(msg, " ");
-		strcat(msg, PtPvdId->pvdId);
+		strcat(msg, PtPvdId->pvdname);
 	}
 	strcat(msg, "\n");
 	if (! WriteString(s, msg, binary)) {
@@ -546,9 +546,9 @@ static	int	SendPvdIdList(int s, int binary)
 	return(0);
 }
 
-// NotifyPvdIdState : send a notification message for this pvdId (NEW/DEL) to
+// NotifyPvdIdState : send a notification message for this pvd (NEW/DEL) to
 // clients having subscribed to such events
-static	void	NotifyPvdIdState(char *pvdId, int Mask)
+static	void	NotifyPvdIdState(char *pvdname, int Mask)
 {
 	int		i;
 	char		msg[2048];
@@ -559,7 +559,7 @@ static	void	NotifyPvdIdState(char *pvdId, int Mask)
 	snprintf(msg, sizeof(msg) - 1,
 		"%s %s\n",
 		Mask == SUBSCRIPTION_NEW_PVDID ? "PVDID_NEW_PVDID" : "PVDID_DEL_PVDID",
-		pvdId);
+		pvdname);
 
 	for (i = 0, pt = lTabClients; i < lNClients; i++, pt++) {
 		if (pt->s == -1) {
@@ -574,7 +574,7 @@ static	void	NotifyPvdIdState(char *pvdId, int Mask)
 	}
 }
 
-// NotifyPvdIdList : send the full pvdId list to clients that have subscribed to
+// NotifyPvdIdList : send the full pvd list to clients that have subscribed to
 // this notification
 static	void	NotifyPvdIdList(void)
 {
@@ -588,7 +588,7 @@ static	void	NotifyPvdIdList(void)
 	// FIXME : check for overflow
 	sprintf(msg, "PVDID_LIST ");	// Important : there must always be a ' '
 	for (PtPvdId = lFirstPvdId; PtPvdId != NULL; PtPvdId = PtPvdId->next) {
-		strcat(msg, PtPvdId->pvdId);
+		strcat(msg, PtPvdId->pvdname);
 		if (PtPvdId->next != NULL) {
 			strcat(msg, " ");
 		}
@@ -611,12 +611,12 @@ static	void	NotifyPvdIdList(void)
 /*
  * GetPvdIdByName : given a pvd name, retrieve its t_PvdId
  */
-static	t_PvdId *GetPvdIdByName(char *pvdId)
+static	t_PvdId *GetPvdIdByName(char *pvdname)
 {
 	t_PvdId	*PtPvdId;
 
 	for (PtPvdId = lFirstPvdId; PtPvdId != NULL; PtPvdId = PtPvdId->next) {
-		if (EQSTR(PtPvdId->pvdId, pvdId)) {
+		if (EQSTR(PtPvdId->pvdname, pvdname)) {
 			return(PtPvdId);
 		}
 	}
@@ -628,15 +628,15 @@ static	t_PvdId *GetPvdIdByName(char *pvdId)
 // provided by clients on control sockets
 // We may want to notify all clients (except control ones) that a
 // new pvdid has appeared
-static	t_PvdId	*RegisterPvdId(int pvdIdHandle, char *pvdId)
+static	t_PvdId	*RegisterPvdId(int pvdid, char *pvdname)
 {
 	t_PvdId	*PtPvdId;
 	char	*tmpStr;
 
 	for (PtPvdId = lFirstPvdId; PtPvdId != NULL; PtPvdId = PtPvdId->next) {
-		if (EQSTR(PtPvdId->pvdId, pvdId)) {
-			if (pvdIdHandle != -1) {
-				PtPvdId->pvdIdHandle = pvdIdHandle;
+		if (EQSTR(PtPvdId->pvdname, pvdname)) {
+			if (pvdid != -1) {
+				PtPvdId->pvdid = pvdid;
 			}
 			PtPvdId->dirty = true;
 			return(PtPvdId);
@@ -649,14 +649,14 @@ static	t_PvdId	*RegisterPvdId(int pvdIdHandle, char *pvdId)
 	}
 	memset(PtPvdId, 0, sizeof(*PtPvdId));
 
-	if ((tmpStr = alloca(strlen(pvdId) * 3 + 2)) == NULL) {
+	if ((tmpStr = alloca(strlen(pvdname) * 3 + 2)) == NULL) {
 		free(PtPvdId);
 		DLOG("allocating pvdid : memory overflow\n");
 		return(NULL);
 	}
 
-	PtPvdId->pvdIdHandle = pvdIdHandle == -1 ? 0 : pvdIdHandle;
-	PtPvdId->pvdId = strdup(pvdId);	// TODO : check overflow
+	PtPvdId->pvdid = pvdid == -1 ? 0 : pvdid;
+	PtPvdId->pvdname = strdup(pvdname);	// TODO : check overflow
 	PtPvdId->dirty = false;
 	memset(PtPvdId->Attributes, 0, sizeof(PtPvdId->Attributes));
 
@@ -664,10 +664,10 @@ static	t_PvdId	*RegisterPvdId(int pvdIdHandle, char *pvdId)
 	 * Create the set of well known attributes (representing the
 	 * various fields of the IETF definition of a PvD
 	 */
-	sprintf(tmpStr, "\"%s\"", JsonString(pvdId));
-	PvdIdSetAttr(PtPvdId, "pvdId", tmpStr);
-	sprintf(tmpStr, "%d", PtPvdId->pvdIdHandle);
-	PvdIdSetAttr(PtPvdId, "pvdIdHandle", tmpStr);
+	sprintf(tmpStr, "\"%s\"", JsonString(pvdname));
+	PvdIdSetAttr(PtPvdId, "name", tmpStr);
+	sprintf(tmpStr, "%d", PtPvdId->pvdid);
+	PvdIdSetAttr(PtPvdId, "id", tmpStr);
 	PvdIdSetAttr(PtPvdId, "sequenceNumber", "0");
 	PvdIdSetAttr(PtPvdId, "hFlag", "0");	// by default
 	PvdIdSetAttr(PtPvdId, "lFlag", "0");
@@ -677,25 +677,25 @@ static	t_PvdId	*RegisterPvdId(int pvdIdHandle, char *pvdId)
 	PtPvdId->next = lFirstPvdId;
 	lFirstPvdId = PtPvdId;
 
-	DLOG("pvdid %s/%d registered\n", pvdId, pvdIdHandle);
+	DLOG("pvdid %s/%d registered\n", pvdname, pvdid);
 
-	NotifyPvdIdState(pvdId, SUBSCRIPTION_NEW_PVDID);
+	NotifyPvdIdState(pvdname, SUBSCRIPTION_NEW_PVDID);
 	NotifyPvdIdList();
 
 	return(PtPvdId);
 }
 
 // UnregisterPvdId : unregister a pvdid. We won't touch the subscription lists
-// (because the pvdId might reappear). We may want to send notification to
+// (because the pvd might reappear). We may want to send notification to
 // all clients (except control clients)
-int	UnregisterPvdId(char *pvdId)
+int	UnregisterPvdId(char *pvdname)
 {
 	int	i;
 	t_PvdId	*PtPvdId, *PtPvdIdPrev = NULL;
 
 	for (PtPvdId = lFirstPvdId; PtPvdId != NULL; PtPvdId = PtPvdId->next) {
-		if (EQSTR(PtPvdId->pvdId, pvdId)) {
-			// Unlink the pvdId and frees all of its fields
+		if (EQSTR(PtPvdId->pvdname, pvdname)) {
+			// Unlink the pvd and frees all of its fields
 			if (PtPvdIdPrev == NULL) {
 				lFirstPvdId = PtPvdId->next;
 			}
@@ -710,9 +710,9 @@ int	UnregisterPvdId(char *pvdId)
 					free(PtPvdId->Attributes[i].Value);
 				}
 			}
-			free(PtPvdId->pvdId);
+			free(PtPvdId->pvdname);
 			free(PtPvdId);
-			NotifyPvdIdState(pvdId, SUBSCRIPTION_DEL_PVDID);
+			NotifyPvdIdState(pvdname, SUBSCRIPTION_DEL_PVDID);
 			NotifyPvdIdList();
 			return(0);
 		}
@@ -727,11 +727,11 @@ static	int	DeleteAttribute(t_PvdId *PtPvdId, char *Key)
 	int	i;
 
 	if (PtPvdId == NULL) {
-		DLOG("DeleteAttribute : unknown pvdId\n");
+		DLOG("DeleteAttribute : unknown pvd\n");
 		return(0);
 	}
 
-	DLOG("DeleteAttribute : pvdId = %s, Key = %s\n", PtPvdId->pvdId, Key);
+	DLOG("DeleteAttribute : pvdname = %s, Key = %s\n", PtPvdId->pvdname, Key);
 
 	for (i = 0; i < MAXATTRIBUTES; i++) {
 		char	*attrKey = PtPvdId->Attributes[i].Key;
@@ -753,7 +753,7 @@ static	int	DeleteAttribute(t_PvdId *PtPvdId, char *Key)
 }
 
 // UpdateAttribute : update (ie, replace)/create a given attribute for
-// a given pvdIdHandle
+// a given pvd
 static	int	UpdateAttribute(t_PvdId *PtPvdId, char *Key, char *Value)
 {
 	int	i;
@@ -762,12 +762,12 @@ static	int	UpdateAttribute(t_PvdId *PtPvdId, char *Key, char *Value)
 	int	firstAvailable = -1;
 
 	if (PtPvdId == NULL) {
-		DLOG("UpdateAttribute : unknown pvdId\n");
+		DLOG("UpdateAttribute : unknown pvd\n");
 		return(0);
 	}
 
-	DLOG("UpdateAttribute : pvdId = %s, Key = %s, Value = %s\n",
-		PtPvdId->pvdId, Key, Value);
+	DLOG("UpdateAttribute : pvdname = %s, Key = %s, Value = %s\n",
+		PtPvdId->pvdname, Key, Value);
 
 	for (i = 0; i < MAXATTRIBUTES; i++) {
 		char	*attrKey = PtPvdId->Attributes[i].Key;
@@ -792,7 +792,7 @@ static	int	UpdateAttribute(t_PvdId *PtPvdId, char *Key, char *Value)
 				return(0);
 			}
 			DLOG("memory overflow allocating attribute %s/%s for %s\n",
-				Key, Value, PtPvdId->pvdId);
+				Key, Value, PtPvdId->pvdname);
 			return(0);
 		}
 	}
@@ -809,16 +809,16 @@ static	int	UpdateAttribute(t_PvdId *PtPvdId, char *Key, char *Value)
 			free(key_);
 			DLOG("memory overflow allocating attribute %s/%s for %s\n",
 			     Key, Value,
-			     PtPvdId->pvdId);
+			     PtPvdId->pvdname);
 		}
 	}
 	if (i > MAXATTRIBUTES) {
-		DLOG("too many attributes defined for %s\n", PtPvdId->pvdId);
+		DLOG("too many attributes defined for %s\n", PtPvdId->pvdname);
 	}
 	return(0);
 }
 
-// PvdIdAttributes2Json : converts all key/value entries for a given pvdIdHandle
+// PvdIdAttributes2Json : converts all key/value entries for a given pvd
 // to a JSON object. The semantic of some fields is well known (hummm, maybe not
 // so true)
 static	char	*PvdIdAttributes2Json(t_PvdId *PtPvdId)
@@ -844,7 +844,7 @@ static	char	*PvdIdAttributes2Json(t_PvdId *PtPvdId)
 
 	SBAddString(&SB, "\n}\n");
 
-	DLOG("PvdIdAttributes2Json(%s) : %s\n", PtPvdId->pvdId, SB.String);
+	DLOG("PvdIdAttributes2Json(%s) : %s\n", PtPvdId->pvdname, SB.String);
 
 	return(SB.String);
 }
@@ -915,13 +915,13 @@ static	int	SendMultiLines(int s, int binary, char *Prefix, ...)
 	return(0);
 }
 
-// NotifyPvdIdAttributes : when one or more attributes for a given pvdIdHandle has/have
-// changed, we must notify all clients interested in this pvdIdHandle of the change(s)
+// NotifyPvdIdAttributes : when one or more attributes for a given pvd has/have
+// changed, we must notify all clients interested in this pvd of the change(s)
 // For now, we send all attributes (JSON format) at once
 static	int	NotifyPvdIdAttributes(t_PvdId *PtPvdId)
 {
 	int	i;
-	char	*pvdId = PtPvdId->pvdId;
+	char	*pvdname = PtPvdId->pvdname;
 	int	FlagInterested = false;
 	char	Prefix[1024];
 	char	*JsonString;
@@ -933,7 +933,7 @@ static	int	NotifyPvdIdAttributes(t_PvdId *PtPvdId)
 			continue;
 		}
 		while (pt != NULL) {
-			if (EQSTR(pt->pvdId, pvdId) || EQSTR(pt->pvdId, "*")) {
+			if (EQSTR(pt->pvdname, pvdname) || EQSTR(pt->pvdname, "*")) {
 				FlagInterested = true;
 				break;
 			}
@@ -953,7 +953,7 @@ static	int	NotifyPvdIdAttributes(t_PvdId *PtPvdId)
 		return(0);
 	}
 
-	sprintf(Prefix, "PVDID_ATTRIBUTES %s\n", pvdId);
+	sprintf(Prefix, "PVDID_ATTRIBUTES %s\n", pvdname);
 
 	for (i = 0; i < lNClients; i++) {
 		int		s = lTabClients[i].s;
@@ -964,7 +964,7 @@ static	int	NotifyPvdIdAttributes(t_PvdId *PtPvdId)
 		}
 
 		while (pt != NULL) {
-			if (EQSTR(pt->pvdId, pvdId) || EQSTR(pt->pvdId, "*")) {
+			if (EQSTR(pt->pvdname, pvdname) || EQSTR(pt->pvdname, "*")) {
 				if (SendMultiLines(
 						s,
 						lTabClients[i].type == SOCKET_BINARY,
@@ -984,19 +984,19 @@ static	int	NotifyPvdIdAttributes(t_PvdId *PtPvdId)
 }
 
 // PvdIdBeginTransaction : called internally before updating a set of attributes
-// Must be 'closed' by a call to PvdIdEndTransaction. The given pvdId will be created
+// Must be 'closed' by a call to PvdIdEndTransaction. The given pvd will be created
 // if needed
-t_PvdId	*PvdIdBeginTransaction(char *pvdId)
+t_PvdId	*PvdIdBeginTransaction(char *pvdname)
 {
 	t_PvdId	*PtPvdId;
 
-	if ((PtPvdId = RegisterPvdId(-1, pvdId)) != NULL) {
+	if ((PtPvdId = RegisterPvdId(-1, pvdname)) != NULL) {
 		PtPvdId->dirty = false;
 	}
 	return(PtPvdId);
 }
 
-// PvdIdSetAttr : update an attribute within a given pvdId
+// PvdIdSetAttr : update an attribute within a given pvd
 int	PvdIdSetAttr(t_PvdId *PtPvdId, char *Key, char *Value)
 {
 	return(UpdateAttribute(PtPvdId, Key, Value));
@@ -1011,24 +1011,24 @@ void	PvdIdEndTransaction(t_PvdId *PtPvdId)
 	}
 }
 
-// SendOneAttribute : send a given attributes for a given pvdIdHandle to a given client
-static	int	SendOneAttribute(int s, int binary, char *pvdId, char *attrName)
+// SendOneAttribute : send a given attributes for a given pvd to a given client
+static	int	SendOneAttribute(int s, int binary, char *pvdname, char *attrName)
 {
 	int		i;
 	char		Prefix[1024];
 	t_PvdId		*PtPvdId;
 	t_PvdAttribute	*Attributes;
 
-	DLOG("send attribute %s for pvdid %s on socket %d\n", attrName, pvdId, s);
+	DLOG("send attribute %s for pvdid %s on socket %d\n", attrName, pvdname, s);
 
-	if ((PtPvdId = GetPvdId(pvdId)) == NULL) {
-		DLOG("%s : unknown PvD\n", pvdId);
+	if ((PtPvdId = GetPvdId(pvdname)) == NULL) {
+		DLOG("%s : unknown PvD\n", pvdname);
 		return(0);
 	}
 
 	Attributes = PtPvdId->Attributes;
 
-	sprintf(Prefix, "PVDID_ATTRIBUTE %s %s\n", pvdId, attrName);
+	sprintf(Prefix, "PVDID_ATTRIBUTE %s %s\n", pvdname, attrName);
 
 	for (i = 0; i < MAXATTRIBUTES; i++) {
 		if (Attributes[i].Value != NULL &&
@@ -1042,23 +1042,23 @@ static	int	SendOneAttribute(int s, int binary, char *pvdId, char *attrName)
 	return(SendMultiLines(s, binary, Prefix, "null", "\n", NULL));
 }
 
-// SendAllAttributes : send the attributes for a given pvdIdHandle to a given client
-static	int	SendAllAttributes(int s, int binary, char *pvdId)
+// SendAllAttributes : send the attributes for a given pvd to a given client
+static	int	SendAllAttributes(int s, int binary, char *pvdname)
 {
 	int	rc;
 	char	Prefix[1024];
 	char	*JsonString;
 	t_PvdId	*PtPvdId;
 
-	DLOG("send all attributes for pvdid %s on socket %d\n", pvdId, s);
+	DLOG("send all attributes for pvdid %s on socket %d\n", pvdname, s);
 
 	// Recursive call in case the client wants to receive the
 	// attributes for all currently registered PvD
-	if (EQSTR(pvdId, "*")) {
+	if (EQSTR(pvdname, "*")) {
 		t_PvdId	*PtPvdId;
 
 		for (PtPvdId = lFirstPvdId; PtPvdId != NULL; PtPvdId = PtPvdId->next) {
-			if ((rc = SendAllAttributes(s, binary, PtPvdId->pvdId)) != 0) {
+			if ((rc = SendAllAttributes(s, binary, PtPvdId->pvdname)) != 0) {
 				return(rc);
 			}
 		}
@@ -1066,7 +1066,7 @@ static	int	SendAllAttributes(int s, int binary, char *pvdId)
 	}
 
 	// Nominal case
-	if ((PtPvdId = GetPvdId(pvdId)) == NULL) {
+	if ((PtPvdId = GetPvdId(pvdname)) == NULL) {
 		return(0);
 	}
 
@@ -1074,7 +1074,7 @@ static	int	SendAllAttributes(int s, int binary, char *pvdId)
 		return(0);
 	}
 
-	sprintf(Prefix, "PVDID_ATTRIBUTES %s\n", pvdId);
+	sprintf(Prefix, "PVDID_ATTRIBUTES %s\n", pvdname);
 
 	rc = SendMultiLines(s, binary, Prefix, JsonString, NULL);
 
@@ -1089,7 +1089,7 @@ static	int	SendAllAttributes(int s, int binary, char *pvdId)
 static	int	HandleMultiLinesMessage(int ix)
 {
 	char	attributeName[1024];
-	char	pvdId[PVDNAMSIZ];
+	char	pvdname[PVDNAMSIZ];
 	char	*pt;
 	int	rc;
 	int	l;
@@ -1112,18 +1112,18 @@ static	int	HandleMultiLinesMessage(int ix)
 	if (sscanf(
 		SB->String,
 		"PVDID_SET_ATTRIBUTE %[^ ] %[^ ]",
-		pvdId,
+		pvdname,
 		attributeName) == 2) {
 
 		if (lTabClients[ix].pvdIdTransaction == NULL ||
-		    ! EQSTR(lTabClients[ix].pvdIdTransaction, pvdId)) {
-			DLOG("updating attribute for %s outside transaction\n", pvdId);
+		    ! EQSTR(lTabClients[ix].pvdIdTransaction, pvdname)) {
+			DLOG("updating attribute for %s outside transaction\n", pvdname);
 			return(0);
 		}
 		// Here, pt points to the 2nd line : it is the attributeValue and
 		// is part of the allocated string buffer (be careful to not free
 		// this string buffer before we have duplicated the attributeValue)
-		rc = UpdateAttribute(GetPvdId(pvdId), attributeName, pt);
+		rc = UpdateAttribute(GetPvdId(pvdname), attributeName, pt);
 
 		SBUninit(SB);
 
@@ -1154,8 +1154,8 @@ static	int	DispatchMessage(char *msg, int ix)
 {
 	char	attributeName[1024];
 	char	attributeValue[4096];
-	char	pvdId[PVDNAMSIZ];	// be careful with overflow
-	int	pvdIdHandle;
+	char	pvdname[PVDNAMSIZ];	// be careful with overflow
+	int	pvdid;
 	int	s = lTabClients[ix].s;
 	int	type = lTabClients[ix].type;
 	int	binary = type == SOCKET_BINARY;
@@ -1213,30 +1213,30 @@ static	int	DispatchMessage(char *msg, int ix)
 			return(0);
 		}
 
-		if (sscanf(msg, "PVDID_BEGIN_TRANSACTION %[^\n]", pvdId) == 1) {
+		if (sscanf(msg, "PVDID_BEGIN_TRANSACTION %[^\n]", pvdname) == 1) {
 			if (lTabClients[ix].pvdIdTransaction != NULL) {
 				DLOG("beginning transaction for %s while %s still on-going\n",
-				     pvdId,
+				     pvdname,
 				     lTabClients[ix].pvdIdTransaction);
 				return(0);
 			}
 
-			lTabClients[ix].pvdIdTransaction = strdup(pvdId);
+			lTabClients[ix].pvdIdTransaction = strdup(pvdname);
 
 			return(0);
 		}
 
-		if (sscanf(msg, "PVDID_END_TRANSACTION %[^\n]", pvdId) == 1) {
+		if (sscanf(msg, "PVDID_END_TRANSACTION %[^\n]", pvdname) == 1) {
 			t_PvdId	*PtPvdId;
 
 			if (lTabClients[ix].pvdIdTransaction == NULL) {
 				DLOG("ending transaction for %s while no transaction on-going\n",
-				     pvdId);
+				     pvdname);
 				return(-1);
 			}
-			if (! EQSTR(lTabClients[ix].pvdIdTransaction, pvdId)) {
+			if (! EQSTR(lTabClients[ix].pvdIdTransaction, pvdname)) {
 				DLOG("ending transaction for %s while on-going one is %s\n",
-				     pvdId,
+				     pvdname,
 				     lTabClients[ix].pvdIdTransaction);
 				return(-1);
 			}
@@ -1244,7 +1244,7 @@ static	int	DispatchMessage(char *msg, int ix)
 			free(lTabClients[ix].pvdIdTransaction);
 			lTabClients[ix].pvdIdTransaction = NULL;
 
-			if ((PtPvdId = GetPvdId(pvdId)) != NULL) {
+			if ((PtPvdId = GetPvdId(pvdname)) != NULL) {
 				if (PtPvdId->dirty) {
 					NotifyPvdIdAttributes(PtPvdId);
 					PtPvdId->dirty = false;
@@ -1257,9 +1257,9 @@ static	int	DispatchMessage(char *msg, int ix)
 		if (sscanf(
 			msg,
 			"PVDID_UNSET_ATTRIBUTE %[^ ] %[^\n]",
-			pvdId,
+			pvdname,
 			attributeName) == 2) {
-			return(DeleteAttribute(GetPvdId(pvdId), attributeName));
+			return(DeleteAttribute(GetPvdId(pvdname), attributeName));
 		}
 
 		// PVDID_SET_ATTRIBUTE message are special : either the
@@ -1269,13 +1269,13 @@ static	int	DispatchMessage(char *msg, int ix)
 		if (sscanf(
 			msg,
 			"PVDID_SET_ATTRIBUTE %[^ ] %[^ ] %[^\n]",
-			pvdId,
+			pvdname,
 			attributeName,
 			attributeValue) == 3) {
 			if (lTabClients[ix].pvdIdTransaction == NULL ||
-			    ! EQSTR(lTabClients[ix].pvdIdTransaction, pvdId)) {
+			    ! EQSTR(lTabClients[ix].pvdIdTransaction, pvdname)) {
 				DLOG("updating attribute for %s outside transaction\n",
-				     pvdId);
+				     pvdname);
 				return(0);
 			}
 			if (lKernelHasPvdSupport &&
@@ -1284,35 +1284,35 @@ static	int	DispatchMessage(char *msg, int ix)
 			     EQSTR(attributeName, "sequenceNumber") ||
 			     EQSTR(attributeName, "lifetime"))) {
 				if (kernel_update_pvd_attr(
-						pvdId,
+						pvdname,
 						attributeName,
 						attributeValue) == -1) {
 					perror("kernel_update_pvd_attr");
 				}
 				return(0);
 			}
-			return(UpdateAttribute(GetPvdId(pvdId), attributeName, attributeValue));
+			return(UpdateAttribute(GetPvdId(pvdname), attributeName, attributeValue));
 		}
 
-		if (sscanf(msg, "PVDID_CREATE_PVDID %d %[^\n]", &pvdIdHandle, pvdId) == 2) {
+		if (sscanf(msg, "PVDID_CREATE_PVDID %d %[^\n]", &pvdid, pvdname) == 2) {
 			if (lKernelHasPvdSupport) {
-				if (kernel_create_pvd(pvdId) == -1) {
+				if (kernel_create_pvd(pvdname) == -1) {
 					perror("kernel_create_pvd");
 				}
 				return(0);
 			}
-			return(RegisterPvdId(pvdIdHandle, pvdId) != NULL);
+			return(RegisterPvdId(pvdid, pvdname) != NULL);
 		}
 
-		if (sscanf(msg, "PVDID_REMOVE_PVDID %[^\n]", pvdId) == 1) {
+		if (sscanf(msg, "PVDID_REMOVE_PVDID %[^\n]", pvdname) == 1) {
 			if (lKernelHasPvdSupport) {
 				if (kernel_update_pvd_attr(
-						pvdId, "lifetime", "0") == -1) {
+						pvdname, "lifetime", "0") == -1) {
 					perror("kernel_update_pvd_attr");
 				}
 				return(0);
 			}
-			return(UnregisterPvdId(pvdId));
+			return(UnregisterPvdId(pvdname));
 		}
 
 		// Unknown message : don't fail on error
@@ -1337,12 +1337,12 @@ static	int	DispatchMessage(char *msg, int ix)
 		return(0);
 	}
 
-	if (sscanf(msg, "PVDID_SUBSCRIBE %[^\n]", pvdId) == 1) {
-		AddSubscription(ix, pvdId);
+	if (sscanf(msg, "PVDID_SUBSCRIBE %[^\n]", pvdname) == 1) {
+		AddSubscription(ix, pvdname);
 		return(0);
 	}
-	if (sscanf(msg, "PVDID_UNSUBSCRIBE %[^\n]", pvdId) == 1) {
-		RemoveSubscription(ix, pvdId);
+	if (sscanf(msg, "PVDID_UNSUBSCRIBE %[^\n]", pvdname) == 1) {
+		RemoveSubscription(ix, pvdname);
 		return(0);
 	}
 
@@ -1354,19 +1354,19 @@ static	int	DispatchMessage(char *msg, int ix)
 	}
 
 	// Once again, PVDID_GET_ATTRIBUTES must come BEFORE PVDID_GET_ATTRIBUTE
-	if (sscanf(msg, "PVDID_GET_ATTRIBUTES %[^\n]", pvdId) == 1) {
+	if (sscanf(msg, "PVDID_GET_ATTRIBUTES %[^\n]", pvdname) == 1) {
 		// Send to the client all known attributes of the
-		// associated pvdIdHandle. The attributes are sent
+		// associated pvd. The attributes are sent
 		// as a JSON object, with embedded \n : multi-lines
 		// message
-		if (SendAllAttributes(s, binary, pvdId) == -1) {
+		if (SendAllAttributes(s, binary, pvdname) == -1) {
 			goto BadExit;
 		}
 		return(0);
 	}
 
-	if (sscanf(msg, "PVDID_GET_ATTRIBUTE %[^ ] %[^\n]", pvdId, attributeName) == 2) {
-		if (SendOneAttribute(s, binary, pvdId, attributeName) == -1) {
+	if (sscanf(msg, "PVDID_GET_ATTRIBUTE %[^ ] %[^\n]", pvdname, attributeName) == 2) {
+		if (SendOneAttribute(s, binary, pvdname, attributeName) == -1) {
 			goto BadExit;
 		}
 		return(0);
@@ -1714,7 +1714,7 @@ int	main(int argc, char **argv)
 	 */
 	/*
 	 * On startup, we must query the kernel for its current
-	 * RA tables (at least, for the current pvdId list).
+	 * RA tables (at least, for the current pvd list).
 	 * An error can occur if the kernel is not recognizing
 	 * the command (ENOPROTOOPT)
 	 */

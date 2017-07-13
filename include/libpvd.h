@@ -92,18 +92,18 @@ extern int		pvdid_get_pvdid_list_sync(
 				t_pvdid_list *pvdIdList);
 extern int		pvdid_get_attributes(
 				t_pvd_connection *conn,
-				char *pvdId);
+				char *pvdname);
 extern int		pvdid_get_attributes_sync(
 				t_pvd_connection *conn,
-				char *pvdId,
+				char *pvdname,
 				char **attributes);
 extern int		pvdid_get_attribute(
 				t_pvd_connection *conn,
-				char *pvdId, 
+				char *pvdname, 
 				char *attrName);
 extern int		pvdid_get_attribute_sync(
 				t_pvd_connection *conn,
-				char *pvdId, 
+				char *pvdname, 
 				char *attrName, 
 				char **attrValue);
 extern int		pvdid_subscribe_notifications(
@@ -112,23 +112,23 @@ extern int		pvdid_unsubscribe_notifications(
 				t_pvd_connection *conn);
 extern int		pvdid_subscribe_pvdid_notifications(
 				t_pvd_connection *conn,
-				char *pvdId);
+				char *pvdname);
 extern int		pvdid_unsubscribe_pvdid_notifications(
 				t_pvd_connection *conn,
-				char *pvdId);
+				char *pvdname);
 extern int		pvdid_get_rdnss(
 				t_pvd_connection *conn,
-				char *pvdId);
+				char *pvdname);
 extern int		pvdid_get_rdnss_sync(
 				t_pvd_connection *conn,
-				char *pvdId,
+				char *pvdname,
 				t_pvdid_rdnss *PtRdnss);
 extern int		pvdid_get_dnssl(
 				t_pvd_connection *conn,
-				char *pvdId);
+				char *pvdname);
 extern int		pvdid_get_dnssl_sync(
 				t_pvd_connection *conn,
-				char *pvdId, 
+				char *pvdname, 
 				t_pvdid_dnssl *PtDnssl);
 
 /*

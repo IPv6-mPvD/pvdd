@@ -24,13 +24,13 @@
 
 #include "libpvd.h"
 
-static	void	GetDnssl(t_pvd_connection *conn, char *pvdId)
+static	void	GetDnssl(t_pvd_connection *conn, char *pvdname)
 {
 	int		i;
 	t_pvdid_dnssl	dnssl;
 
 	if (pvdid_get_dnssl_sync(conn, "pvd.cisco.com", &dnssl) == 0) {
-		printf("DNSSL %s :", pvdId);
+		printf("DNSSL %s :", pvdname);
 		for (i = 0; i < dnssl.nDnssl; i++) {
 			printf(" %s", dnssl.Dnssl[i]);
 		}
@@ -183,7 +183,7 @@ int	main(int argc, char **argv)
 
 		if (rc == 0) {
 			pvdid_get_attributes(mainS, "localhost");
-			pvdid_get_attribute(mainS, "pvd.orange.com", "pvdId");
+			pvdid_get_attribute(mainS, "pvd.orange.com", "name");
 			GetDnssl(mainS, "pvd.cisco.com");
 			continue;
 		}

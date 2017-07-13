@@ -29,7 +29,7 @@ pvd-monitor [-h|--help] <option>*
 with option :
         -v|--verbose : outputs extra logs during operation
         -d|--debug : run in a simulation environment (local http server)
-        --pvd <pvdId>* : list of space separated pvdId FQDN
+        --pvd <pvdname>* : list of space separated pvdname FQDN
 
 In addition to the PvD specified on the command line, the script
 monitors notifications from the pvd daemon to discover new PvD.
@@ -39,7 +39,7 @@ debug environment).
 
 When running in a simulation environment (aka debug mode), requests to
 retrieve the JSON description (pvd.json) are done via the
-http://localhost:8000/<pvdId> URL instead of https://<pvdId>/pvd.json
+http://localhost:8000/<pvdname> URL instead of https://<pvdname>/pvd.json
 For this to work, a local http server must be started locally of course
 ~~~~
 

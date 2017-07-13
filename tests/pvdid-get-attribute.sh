@@ -4,7 +4,7 @@
 
 if [ $# != 2 ]
 then
-	echo "usage : $0 pvdId attrName"
+	echo "usage : $0 pvdname attrName"
 	exit 1
 fi
 
