@@ -500,12 +500,12 @@ static	int	ParseStringArray(char *msg, char **Array, int Size)
 
 // pvd_parse_rdnss : msq contains a JSON array of strings
 // The string can either be alone on the line, either preceded
-// by PVD_ATTRIBUTE <pvdname> RDNSS. These strings are in6 addresses
+// by PVD_ATTRIBUTE <pvdname> rdnss. These strings are in6 addresses
 int	pvd_parse_rdnss(char *msg, t_rdnss_list *PtRdnss)
 {
 	char	rdnss[2048];
 
-	if (sscanf(msg, "PVD_ATTRIBUTE %*[^ ] RDNSS %[^\n]", rdnss) == 1) {
+	if (sscanf(msg, "PVD_ATTRIBUTE %*[^ ] rdnss %[^\n]", rdnss) == 1) {
 		msg = rdnss;
 	}
 
@@ -526,12 +526,12 @@ void	pvd_release_rdnss(t_rdnss_list *PtRdnss)
 
 // pvd_parse_dnssl : msq contains a JSON array of strings
 // The string can either be alone on the line, either preceded
-// by PVD_ATTRIBUTE <pvdname> DNSSL
+// by PVD_ATTRIBUTE <pvdname> dnssl
 int	pvd_parse_dnssl(char *msg, t_dnssl_list *PtDnssl)
 {
 	char	dnssl[2048];
 
-	if (sscanf(msg, "PVD_ATTRIBUTE %*[^ ] DNSSL %[^\n]", dnssl) == 1) {
+	if (sscanf(msg, "PVD_ATTRIBUTE %*[^ ] dnssl %[^\n]", dnssl) == 1) {
 		msg = dnssl;
 	}
 
@@ -554,7 +554,7 @@ int	pvd_get_rdnss(t_pvd_connection *conn, char *pvdname)
 {
 	char	s[2048];
 
-	sprintf(s, "PVD_GET_ATTRIBUTE %s RDNSS\n", pvdname);
+	sprintf(s, "PVD_GET_ATTRIBUTE %s rdnss\n", pvdname);
 
 	return(SendExact(pvd_connection_fd(conn), s));
 }
@@ -572,7 +572,7 @@ int	pvd_get_rdnss_sync(
 	if ((newconn = pvd_get_binary_socket(conn)) != NULL) {
 		if (pvd_get_rdnss(newconn, pvdname) == 0 &&
 		    ReadMsg(newconn->fd, &msg) == 0) {
-			sprintf(Pattern, "PVD_ATTRIBUTE %s RDNSS\n", pvdname);
+			sprintf(Pattern, "PVD_ATTRIBUTE %s rdnss\n", pvdname);
 
 			if (strncmp(msg, Pattern, strlen(Pattern)) == 0) {
 				rc = pvd_parse_rdnss(&msg[strlen(Pattern)], PtRdnss);
@@ -588,7 +588,7 @@ int	pvd_get_dnssl(t_pvd_connection *conn, char *pvdname)
 {
 	char	s[2048];
 
-	sprintf(s, "PVD_GET_ATTRIBUTE %s DNSSL\n", pvdname);
+	sprintf(s, "PVD_GET_ATTRIBUTE %s dnssl\n", pvdname);
 
 	return(SendExact(pvd_connection_fd(conn), s));
 }
@@ -606,7 +606,7 @@ int	pvd_get_dnssl_sync(
 	if ((newconn = pvd_get_binary_socket(conn)) != NULL) {
 		if (pvd_get_dnssl(newconn, pvdname) == 0 &&
 		    ReadMsg(newconn->fd, &msg) == 0) {
-			sprintf(Pattern, "PVD_ATTRIBUTE %s DNSSL\n", pvdname);
+			sprintf(Pattern, "PVD_ATTRIBUTE %s dnssl\n", pvdname);
 
 			if (strncmp(msg, Pattern, strlen(Pattern)) == 0) {
 				rc = pvd_parse_dnssl(&msg[strlen(Pattern)], PtDnssl);

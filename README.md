@@ -49,8 +49,8 @@ update the internal database.
 For now, the fields of interest are :
 
 * the PvD name itself (FQDN) and its characteristics (sequence number, H and L flags, lifetime)
-* the DNSSL field (list of search domains)
-* the RDNSS field (list of recursive domain servers)
+* the dnssl field (list of search domains)
+* the rdnss field (list of recursive domain servers)
 
 When a RA carries a new pvd, an entry for this pvd is created in the database.
 
@@ -71,11 +71,11 @@ The daemon in this case has access to a set of additional kernel API :
 	* PvD name, sequence number, H, L flags, lifetime
 	* associated IPv6 addresses
 	* associated IPv6 routes
-	* RDNSS and DNSSL
+	* rdnss and dnssl
 * to create a new PvD
 * to delete a PvD (by setting its lifetime to 0)
 * to modify any of its attributes
-* to update the list of DNSSL and RDNSS (not yet implemented)
+* to update the list of dnssl and rdnss (not yet implemented)
 
 Modifying the attributes has the effect of the notification mechanism to be triggered, which,
 in turn, allows the daemon to update its internal database (to reflect the state of the kernel).
@@ -381,10 +381,10 @@ PVD_ATTRIBUTES pvd.cisco.com
         "sequenceNumber" : 0,
         "hFlag" : 1,
         "lFlag" : 0,
-        "RDNSS" : ["8.8.8.8", "8.8.4.4", "8.8.2.2"],
-        "DNSSL" : ["orange.fr", "free.fr"],
-        "extraJson" : {
-                "validUntil" : "2017-04-17T06:00:00Z",
+        "rdnss" : ["8.8.8.8", "8.8.4.4", "8.8.2.2"],
+        "dnssl" : ["orange.fr", "free.fr"],
+        "extraInfo" : {
+                "expires" : "2017-04-17T06:00:00Z",
                 "name" : "orange.fr"
         }
 }
