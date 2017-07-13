@@ -1,8 +1,8 @@
-# pvdid library
+# pvd library
 
 A native (aka C) library is provided intended to make it easier for native
 application to manipulate/discover PvD related information. It is a light
-wrapper on the pvdid-daemon connection and messages formatting as described
+wrapper on the pvdd daemon connection and messages formatting as described
 in the top-level README.md.
 
 The library also encapsulates some direct calls to the kernel (via _setsockopt_/
@@ -10,7 +10,7 @@ _getsockopt_ calls).
 
 ## Principles
 
-Interaction with the pvdid daemon is done via messages sent/received on a socket.
+Interaction with the pvdd daemon is done via messages sent/received on a socket.
 
 Interacting with the daemon means :
 
@@ -25,7 +25,7 @@ It is also possible to use a synchronous style of interaction with the daemon wi
 introducing any unwanted misbehaviour with an existing main loop in the same client.
 
 
-The pvdid daemon is only accepting connection on 0.0.0.0. The port it listens on
+The pvdd daemon is only accepting connection on 0.0.0.0. The port it listens on
 however can have been specified when the daemon has been started. In this case,
 the corresponding port must also be provided by the application to the library.
 
@@ -44,7 +44,7 @@ create control or binary sockets)
 For now, applications must handle disconnection with the daemon (in case the latter
 is stopped and restarted) to properly close and recreate connections if needed.
 
-Each PvD is identified by a name (the _pvdname_ or _pvdId_) and has a set of attributes.
+Each PvD is identified by a name (the _pvdname_ or _pvdid_) and has a set of attributes.
 
 These attributes are made available to the client applications as a JSON object.
 
@@ -54,10 +54,10 @@ attribute, given that the application knows its name.
 
 ## API
 
-Access to the prototypes and types definitions is done by including \<libpvdid.h\>
+Access to the prototypes and types definitions is done by including \<libpvd.h\>
 
 ~~~~
-#include <libpvdid.h>
+#include <libpvd.h>
 ~~~~
 
 ### Types
@@ -170,7 +170,7 @@ from the daemon, just because there can be some purely user defined attributes
 (such as the extra JSON information not transmitted via the kernel mechanisms).
 
 Direct call to the kernel to retrieve the list of PvDs is usually not done
-by the applications. The pvdid daemon however will perform such a call when
+by the applications. The pvdd daemon however will perform such a call when
 starting.
 
 ### Establishing/closing a connection
@@ -240,7 +240,7 @@ Here are they :
 
 ~~~~
 extern int	pvd_get_pvd_list_sync(
-			t_pvd_connection *conn, t_pvd_list *pvdIdList);
+			t_pvd_connection *conn, t_pvd_list *pvdList);
 extern int	pvd_get_attributes_sync(
 			t_pvd_connection *conn, char *pvdname, char **attributes);
 extern int	pvd_get_attribute_sync(
@@ -251,21 +251,21 @@ extern int	pvd_get_dnssl_sync(
 			t_pvd_connection *conn, char *pvdname, t_dnssl_list *PtDnssl);
 ~~~~
 
-The _pvdid\_get\_attributes\_sync_ function returns all the attributes collected
+The _pvd\_get\_attributes\_sync_ function returns all the attributes collected
 by the daemon for a given PvD. The _attributes_ output parameters must be freed
 by the caller using __free__.
 
-Similarily, the _pvdid\_get\_attribute\_sync_ function returns a string (_attrValue_)
+Similarily, the _pvd\_get\_attribute\_sync_ function returns a string (_attrValue_)
 that must freed using __free__.
 
 The attributes or the attribute value for a given attribute are a valid stringified
 representation of a JSON object.
 
-The _pvdid\_get\_rdnss\_sync_ and _pvdid\_get\_dnssl\_sync_ functions are specialized
-functions retrieving well known attributes (__RDNSS__ and __DNSSL__) and parsing the
-returned string to build the _t\_pvdid\_rdnss_ and _t\_pvdid\_dnssl_ structures.
+The _pvd\_get\_rdnss\_sync_ and _pvd\_get\_dnssl\_sync_ functions are specialized
+functions retrieving well known attributes (__rdnss__ and __dnssl__) and parsing the
+returned string to build the _t\_rdnss\_list_ and _t\_pvd\_dnssl_ structures.
 
-The _t\_pvdid\_rdnss_ and _t\_pvdid\_dnssl_ structures above contain strings that must
+The _t\_rdnss\_list_ and _t\__dnssl\_list_ structures above contain strings that must
 be freed by calling :
 
 ~~~~
@@ -310,7 +310,7 @@ is specified on the top-level __README.md__.
 ### Helpers
 
 ~~~~
-extern int	pvd_parse_pvd_list(char *msg, t_pvd_list *pvdIdList);
+extern int	pvd_parse_pvd_list(char *msg, t_pvd_list *pvdList);
 extern int	pvd_parse_rdnss(char *msg, t_rdnss_list *PtRdnss);
 extern int	pvd_parse_dnssl(char *msg, t_dnssl_list *PtDnssl);
 extern void	pvd_release_rdnss(t_rdnss_list *PtRdnss);
@@ -344,11 +344,11 @@ means that a message too large for the protocol has been advertised by the daemo
 we recommend to close the connection and reestablish it
 
 
-__pvdid\_get\_message()__ attempts to retrieve a message from the internal buffer. It must be
-called when __pvdid\_read\_data()__ has returned __PVD\_READ\_OK__.
+__pvd\_get\_message()__ attempts to retrieve a message from the internal buffer. It must be
+called when __pvd\_read\_data()__ has returned __PVD\_READ\_OK__.
 
 The message (a string ending with a \\n) is returned in __msg__. It does not need to be freed :
-the next call to __pvdid\_get\_message()__ will free it (that means that the application must
+the next call to __pvd\_get\_message()__ will free it (that means that the application must
 duplicate it if it needs to address to the message at a later stage).
 
 It returns :
@@ -393,7 +393,7 @@ caller : the __npvd__ field of the structure must contain the dimension of the
 __pvds__ field. It is safe for the application to use the _struct pvd\_list_ structure
 defined in the header file and to initiailze the _npvd_ field to __MAXPVD__.
 
-That being said, _pvd\_get\_list()_ will primilarily be used by the pvdid daemon and not
+That being said, _pvd\_get\_list()_ will primilarily be used by the pvdd daemon and not
 by the applications (although nothing prevents them to call it).
 
 ## Well known attributes names
@@ -409,11 +409,8 @@ They are :
 + __lifetime__ : the expire value of the PvD (an integer)
 + __rdnss__ : the list of DNS recursive servers associated to this PvD (array of strings)
 + __dnssl__ : the list of DNS lookup domains (array of strings)
-+ __extraInfo__ : the JSON structure retrieved from https://\<pvdid\>/pvd.json
++ __extraInfo__ : the JSON structure retrieved from https://\<pvdname\>/pvd.json
 
 
 ## TODO
 There is a lack of consistency in the various namings or in the way items should be freed/released.
-
-We need to decide whether to prefix things with __pvd__ or with __pvd__.
-
