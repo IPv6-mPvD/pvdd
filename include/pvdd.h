@@ -13,8 +13,8 @@
 	See the License for the specific language governing permissions and
 	limitations under the License.
 */
-#ifndef	PVDID_DAEMON_H
-#define	PVDID_DAEMON_H
+#ifndef	PVDD_H
+#define	PVDD_H
 
 struct t_Pvd;
 
@@ -25,6 +25,6 @@ extern int	PvdSetAttr(t_Pvd *PtPvd, char *Key, char *Value);
 extern int	UnregisterPvd(char *pvdname);
 extern void	PvdEndTransaction(t_Pvd *PtPvd);
 
-#endif	/* PVDID_DAEMON_H */
+#endif	/* PVDD_H */
 
 /* ex: set ts=8 noexpandtab wrap: */

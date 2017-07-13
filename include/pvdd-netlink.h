@@ -13,8 +13,8 @@
 	See the License for the specific language governing permissions and
 	limitations under the License.
 */
-#ifndef	PVDID_NETLINK_H
-#define	PVDID_NETLINK_H
+#ifndef	PVDD_NETLINK_H
+#define	PVDD_NETLINK_H
 
 extern int open_icmpv6_socket(void);
 extern int HandleNetlink(int sock);
@@ -29,6 +29,6 @@ extern char *addrtostr(
 		char *str,
 		size_t str_size);
 
-#endif	/* PVDID_NETLINK_H */
+#endif	/* PVDD_NETLINK_H */
 
 /* ex: set ts=8 noexpandtab wrap: */

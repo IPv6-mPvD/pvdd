@@ -13,8 +13,8 @@
 	See the License for the specific language governing permissions and
 	limitations under the License.
 */
-#ifndef	PVDID_UTILS_H
-#define	PVDID_UTILS_H
+#ifndef	PVD_UTILS_H
+#define	PVD_UTILS_H
 
 #undef	true
 #undef	false
@@ -47,6 +47,6 @@ extern char *GetIntStr(int n);
 
 extern int lFlagVerbose;
 
-#endif		/* PVDID_UTILS_H */
+#endif		/* PVD_UTILS_H */
 
 /* ex: set ts=8 noexpandtab wrap: */

@@ -13,8 +13,8 @@
 	See the License for the specific language governing permissions and
 	limitations under the License.
 */
-#ifndef	LIBPVDID_H
-#define	LIBPVDID_H
+#ifndef	LIBPVD_H
+#define	LIBPVD_H
 
 #include <linux/pvd-user.h>
 
@@ -171,6 +171,6 @@ extern	struct ra_list	*ralist_alloc(int max_ras);
 extern	void	ralist_release(struct ra_list *ral);
 extern	int	kernel_get_ralist(struct ra_list *ral);
 
-#endif		/* LIBPVDID_H */
+#endif		/* LIBPVD_H */
 
 /* ex: set ts=8 noexpandtab wrap: */

@@ -163,9 +163,9 @@ char *addrtostr(struct in6_addr const *addr, char *str, size_t str_size)
 }
 
 /*
- * process_ra : we are mostly interested in gathering PVDID related information that
- * might be of interest for clients. We want to assign the whole RA to any PVDID
- * if such PVDID option is found in the RA. Othewise, the RA will be an PVDID orphan !
+ * process_ra : we are mostly interested in gathering pvd related information that
+ * might be of interest for clients. We want to assign the whole RA to any pvd
+ * if such pvd option is found in the RA. Othewise, the RA will be an pvd orphan !
  *
  * We must take care of RA with nd_ra_router_lifetime == 0 (RA is becoming invalid)
  */

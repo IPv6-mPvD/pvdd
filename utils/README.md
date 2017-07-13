@@ -16,7 +16,7 @@ response, if any).
 
 If an attempt to retrieve the file fails, a retry is performed 1 minute later.
 
-It uses the __PVDID\_PORT__ environment variable, and defaults to 10101, to establish
+It uses the __PVDD\_PORT__ environment variable, and defaults to 10101, to establish
 a connection with the local pvd daemon.
 
 Once a JSON file has been retrieved for a given PvD, it requests the pvd daemon to

@@ -91,8 +91,8 @@
 // Clients can request to be notified on some changes. No notifications by
 // default
 #define	SUBSCRIPTION_LIST	0x01
-#define	SUBSCRIPTION_NEW_PVDID	0x02
-#define	SUBSCRIPTION_DEL_PVDID	0x04
+#define	SUBSCRIPTION_NEW_PVD	0x02
+#define	SUBSCRIPTION_DEL_PVD	0x04
 
 /* types definitions --------------------------------------------- */
 typedef	struct t_PvdNameList
@@ -171,12 +171,12 @@ static	int	usage(char *s)
 	fprintf(fo, "\t-r|--use-cached-ra : retrieve the initial PvD list via a kernel cache\n");
 	fprintf(fo,
 		"\t-p|--port <#> : port number for clients requests (default %d)\n",
-		DEFAULT_PVDID_PORT);
+		DEFAULT_PVDD_PORT);
 	fprintf(fo,
 		"\t-d|--dir <path> : directory in which information is stored (none by default)\n");
 	fprintf(fo,
 		"\n"
-		"Clients using the companion library can set the PVDID_PORT environment\n"
+		"Clients using the companion library can set the PVDD_PORT environment\n"
 		"variable to specify another port than the default one\n");
 	fprintf(fo,
 		"\n"
@@ -534,7 +534,7 @@ static	int	SendPvdList(int s, int binary)
 	t_Pvd	*PtPvd;
 
 	// FIXME : check for overflow
-	sprintf(msg, "PVDID_LIST");
+	sprintf(msg, "PVD_LIST");
 	for (PtPvd = lFirstPvd; PtPvd != NULL; PtPvd = PtPvd->next) {
 		strcat(msg, " ");
 		strcat(msg, PtPvd->pvdname);
@@ -558,7 +558,7 @@ static	void	NotifyPvdState(char *pvdname, int Mask)
 
 	snprintf(msg, sizeof(msg) - 1,
 		"%s %s\n",
-		Mask == SUBSCRIPTION_NEW_PVDID ? "PVDID_NEW_PVDID" : "PVDID_DEL_PVDID",
+		Mask == SUBSCRIPTION_NEW_PVD ? "PVD_NEW_PVD" : "PVD_DEL_PVD",
 		pvdname);
 
 	for (i = 0, pt = lTabClients; i < lNClients; i++, pt++) {
@@ -586,7 +586,7 @@ static	void	NotifyPvdList(void)
 	msg[sizeof(msg) - 1] = '\0';
 
 	// FIXME : check for overflow
-	sprintf(msg, "PVDID_LIST ");	// Important : there must always be a ' '
+	sprintf(msg, "PVD_LIST ");	// Important : there must always be a ' '
 	for (PtPvd = lFirstPvd; PtPvd != NULL; PtPvd = PtPvd->next) {
 		strcat(msg, PtPvd->pvdname);
 		if (PtPvd->next != NULL) {
@@ -679,7 +679,7 @@ static	t_Pvd	*RegisterPvd(int pvdid, char *pvdname)
 
 	DLOG("pvdid %s/%d registered\n", pvdname, pvdid);
 
-	NotifyPvdState(pvdname, SUBSCRIPTION_NEW_PVDID);
+	NotifyPvdState(pvdname, SUBSCRIPTION_NEW_PVD);
 	NotifyPvdList();
 
 	return(PtPvd);
@@ -712,7 +712,7 @@ int	UnregisterPvd(char *pvdname)
 			}
 			free(PtPvd->pvdname);
 			free(PtPvd);
-			NotifyPvdState(pvdname, SUBSCRIPTION_DEL_PVDID);
+			NotifyPvdState(pvdname, SUBSCRIPTION_DEL_PVD);
 			NotifyPvdList();
 			return(0);
 		}
@@ -850,10 +850,10 @@ static	char	*PvdAttributes2Json(t_Pvd *PtPvd)
 }
 
 // SendMultiLines : send a multi-line string to a client. Multi-line messages are :
-// PVDID_BEGIN_MULTILINE
+// PVD_BEGIN_MULTILINE
 // ...
 // ...
-// PVDID_END_MULTILINE
+// PVD_END_MULTILINE
 // In case of a binary promoted connection, there is no such MULTILINE header
 // because binary connections messages are made of a length + data payload
 static	int	SendMultiLines(int s, int binary, char *Prefix, ...)
@@ -864,7 +864,7 @@ static	int	SendMultiLines(int s, int binary, char *Prefix, ...)
 	/*
 	 * Header of the message :
 	 * + length in case of binary connection
-	 * + PVDID_BEGIN_MULTILINE string otherwise
+	 * + PVD_BEGIN_MULTILINE string otherwise
 	 */
 	if (binary) {
 		int	len = strlen(Prefix);
@@ -881,7 +881,7 @@ static	int	SendMultiLines(int s, int binary, char *Prefix, ...)
 		}
 	}
 	else {
-		if (! WriteString(s, "PVDID_BEGIN_MULTILINE\n", false)) {
+		if (! WriteString(s, "PVD_BEGIN_MULTILINE\n", false)) {
 			return(-1);
 		}
 	}
@@ -904,10 +904,10 @@ static	int	SendMultiLines(int s, int binary, char *Prefix, ...)
 	/*
 	 * The trailer of the message :
 	 * + nothing in case of binary connection
-	 * + PVDID_END_MULTILINE string otherwise
+	 * + PVD_END_MULTILINE string otherwise
 	 */
 	if (! binary) {
-		if (! WriteString(s, "PVDID_END_MULTILINE\n", false)) {
+		if (! WriteString(s, "PVD_END_MULTILINE\n", false)) {
 			return(-1);
 		}
 	}
@@ -953,7 +953,7 @@ static	int	NotifyPvdAttributes(t_Pvd *PtPvd)
 		return(0);
 	}
 
-	sprintf(Prefix, "PVDID_ATTRIBUTES %s\n", pvdname);
+	sprintf(Prefix, "PVD_ATTRIBUTES %s\n", pvdname);
 
 	for (i = 0; i < lNClients; i++) {
 		int		s = lTabClients[i].s;
@@ -1028,7 +1028,7 @@ static	int	SendOneAttribute(int s, int binary, char *pvdname, char *attrName)
 
 	Attributes = PtPvd->Attributes;
 
-	sprintf(Prefix, "PVDID_ATTRIBUTE %s %s\n", pvdname, attrName);
+	sprintf(Prefix, "PVD_ATTRIBUTE %s %s\n", pvdname, attrName);
 
 	for (i = 0; i < MAXATTRIBUTES; i++) {
 		if (Attributes[i].Value != NULL &&
@@ -1074,7 +1074,7 @@ static	int	SendAllAttributes(int s, int binary, char *pvdname)
 		return(0);
 	}
 
-	sprintf(Prefix, "PVDID_ATTRIBUTES %s\n", pvdname);
+	sprintf(Prefix, "PVD_ATTRIBUTES %s\n", pvdname);
 
 	rc = SendMultiLines(s, binary, Prefix, JsonString, NULL);
 
@@ -1111,7 +1111,7 @@ static	int	HandleMultiLinesMessage(int ix)
 
 	if (sscanf(
 		SB->String,
-		"PVDID_SET_ATTRIBUTE %[^ ] %[^ ]",
+		"PVD_SET_ATTRIBUTE %[^ ] %[^ ]",
 		pvdname,
 		attributeName) == 2) {
 
@@ -1146,7 +1146,7 @@ static	int	HandleMultiLinesMessage(int ix)
 // terminating \n, but with a \0 instead
 // Some messages however are multi-line (typically the ones containing
 // JSON payload). Multi-line messages are formatted as follows :
-// PVDID_XXX ... <number of lines>
+// PVD_XXX ... <number of lines>
 // ...
 // ...
 //
@@ -1166,7 +1166,7 @@ static	int	DispatchMessage(char *msg, int ix)
 
 	// Only one kind of promotion for now (more a restriction
 	// than a promotion in fact)
-	if (EQSTR(msg, "PVDID_CONNECTION_PROMOTE_CONTROL")) {
+	if (EQSTR(msg, "PVD_CONNECTION_PROMOTE_CONTROL")) {
 		// TODO : perform some credentials verifications
 		if (lTabClients[ix].type == SOCKET_CONTROL) {
 			// Already promoted (no way back to regular connection)
@@ -1180,7 +1180,7 @@ static	int	DispatchMessage(char *msg, int ix)
 		return(0);
 	}
 
-	if (EQSTR(msg, "PVDID_CONNECTION_PROMOTE_BINARY")) {
+	if (EQSTR(msg, "PVD_CONNECTION_PROMOTE_BINARY")) {
 		lTabClients[ix].type = SOCKET_BINARY;
 		return(0);
 	}
@@ -1193,7 +1193,7 @@ static	int	DispatchMessage(char *msg, int ix)
 		// test here (ie, before END_MULTILINE & Co) to have
 		// the chance to reset the buffers in case we have missed
 		// a previous multi-lines section END message
-		if (EQSTR(msg, "PVDID_BEGIN_MULTILINE")) {
+		if (EQSTR(msg, "PVD_BEGIN_MULTILINE")) {
 			lTabClients[ix].multiLines = true;
 			SBUninit(&lTabClients[ix].SB);
 			SBInit(&lTabClients[ix].SB);
@@ -1201,7 +1201,7 @@ static	int	DispatchMessage(char *msg, int ix)
 		}
 
 		// Are we at the end of a multi-lines section ?
-		if (EQSTR(msg, "PVDID_END_MULTILINE")) {
+		if (EQSTR(msg, "PVD_END_MULTILINE")) {
 			lTabClients[ix].multiLines = false;
 			return(HandleMultiLinesMessage(ix));
 		}
@@ -1213,7 +1213,7 @@ static	int	DispatchMessage(char *msg, int ix)
 			return(0);
 		}
 
-		if (sscanf(msg, "PVDID_BEGIN_TRANSACTION %[^\n]", pvdname) == 1) {
+		if (sscanf(msg, "PVD_BEGIN_TRANSACTION %[^\n]", pvdname) == 1) {
 			if (lTabClients[ix].pvdIdTransaction != NULL) {
 				DLOG("beginning transaction for %s while %s still on-going\n",
 				     pvdname,
@@ -1226,7 +1226,7 @@ static	int	DispatchMessage(char *msg, int ix)
 			return(0);
 		}
 
-		if (sscanf(msg, "PVDID_END_TRANSACTION %[^\n]", pvdname) == 1) {
+		if (sscanf(msg, "PVD_END_TRANSACTION %[^\n]", pvdname) == 1) {
 			t_Pvd	*PtPvd;
 
 			if (lTabClients[ix].pvdIdTransaction == NULL) {
@@ -1256,19 +1256,19 @@ static	int	DispatchMessage(char *msg, int ix)
 
 		if (sscanf(
 			msg,
-			"PVDID_UNSET_ATTRIBUTE %[^ ] %[^\n]",
+			"PVD_UNSET_ATTRIBUTE %[^ ] %[^\n]",
 			pvdname,
 			attributeName) == 2) {
 			return(DeleteAttribute(GetPvd(pvdname), attributeName));
 		}
 
-		// PVDID_SET_ATTRIBUTE message are special : either the
+		// PVD_SET_ATTRIBUTE message are special : either the
 		// content fits on the line, either it is part of a
 		// multi-lines string. We only handle here the one-line
 		// version
 		if (sscanf(
 			msg,
-			"PVDID_SET_ATTRIBUTE %[^ ] %[^ ] %[^\n]",
+			"PVD_SET_ATTRIBUTE %[^ ] %[^ ] %[^\n]",
 			pvdname,
 			attributeName,
 			attributeValue) == 3) {
@@ -1294,7 +1294,7 @@ static	int	DispatchMessage(char *msg, int ix)
 			return(UpdateAttribute(GetPvd(pvdname), attributeName, attributeValue));
 		}
 
-		if (sscanf(msg, "PVDID_CREATE_PVDID %d %[^\n]", &pvdid, pvdname) == 2) {
+		if (sscanf(msg, "PVD_CREATE_PVD %d %[^\n]", &pvdid, pvdname) == 2) {
 			if (lKernelHasPvdSupport) {
 				if (kernel_create_pvd(pvdname) == -1) {
 					perror("kernel_create_pvd");
@@ -1304,7 +1304,7 @@ static	int	DispatchMessage(char *msg, int ix)
 			return(RegisterPvd(pvdid, pvdname) != NULL);
 		}
 
-		if (sscanf(msg, "PVDID_REMOVE_PVDID %[^\n]", pvdname) == 1) {
+		if (sscanf(msg, "PVD_REMOVE_PVD %[^\n]", pvdname) == 1) {
 			if (lKernelHasPvdSupport) {
 				if (kernel_update_pvd_attr(
 						pvdname, "lifetime", "0") == -1) {
@@ -1324,37 +1324,37 @@ static	int	DispatchMessage(char *msg, int ix)
 	}
 
 	// Non control clients
-	// Beware : PVDID_SUBSCRIBE_NOTIFICATIONS must appear before the
-	// sscanf(PVDID_SUBSCRIBE %[^\ ] otherwise the sscanf pattern will
+	// Beware : PVD_SUBSCRIBE_NOTIFICATIONS must appear before the
+	// sscanf(PVD_SUBSCRIBE %[^\ ] otherwise the sscanf pattern will
 	// catch the string !
-	if (EQSTR(msg, "PVDID_SUBSCRIBE_NOTIFICATIONS")) {
+	if (EQSTR(msg, "PVD_SUBSCRIBE_NOTIFICATIONS")) {
 		lTabClients[ix].SubscriptionMask = 0xFF;
 		return(0);
 	}
 
-	if (EQSTR(msg, "PVDID_UNSUBSCRIBE_NOTIFICATIONS")) {
+	if (EQSTR(msg, "PVD_UNSUBSCRIBE_NOTIFICATIONS")) {
 		lTabClients[ix].SubscriptionMask = 0;
 		return(0);
 	}
 
-	if (sscanf(msg, "PVDID_SUBSCRIBE %[^\n]", pvdname) == 1) {
+	if (sscanf(msg, "PVD_SUBSCRIBE %[^\n]", pvdname) == 1) {
 		AddSubscription(ix, pvdname);
 		return(0);
 	}
-	if (sscanf(msg, "PVDID_UNSUBSCRIBE %[^\n]", pvdname) == 1) {
+	if (sscanf(msg, "PVD_UNSUBSCRIBE %[^\n]", pvdname) == 1) {
 		RemoveSubscription(ix, pvdname);
 		return(0);
 	}
 
-	if (EQSTR(msg, "PVDID_GET_LIST")) {
+	if (EQSTR(msg, "PVD_GET_LIST")) {
 		if (SendPvdList(s, binary) == -1) {
 			goto BadExit;
 		}
 		return(0);
 	}
 
-	// Once again, PVDID_GET_ATTRIBUTES must come BEFORE PVDID_GET_ATTRIBUTE
-	if (sscanf(msg, "PVDID_GET_ATTRIBUTES %[^\n]", pvdname) == 1) {
+	// Once again, PVD_GET_ATTRIBUTES must come BEFORE PVD_GET_ATTRIBUTE
+	if (sscanf(msg, "PVD_GET_ATTRIBUTES %[^\n]", pvdname) == 1) {
 		// Send to the client all known attributes of the
 		// associated pvd. The attributes are sent
 		// as a JSON object, with embedded \n : multi-lines
@@ -1365,7 +1365,7 @@ static	int	DispatchMessage(char *msg, int ix)
 		return(0);
 	}
 
-	if (sscanf(msg, "PVDID_GET_ATTRIBUTE %[^ ] %[^\n]", pvdname, attributeName) == 2) {
+	if (sscanf(msg, "PVD_GET_ATTRIBUTE %[^ ] %[^\n]", pvdname, attributeName) == 2) {
 		if (SendOneAttribute(s, binary, pvdname, attributeName) == -1) {
 			goto BadExit;
 		}
@@ -1390,7 +1390,7 @@ BadExit :
 // not of lines across buffer boundaries)
 static	int	HandleMessage(int ix)
 {
-	static char lMsg[PVDID_MAX_MSG_SIZE];
+	static char lMsg[PVD_MAX_MSG_SIZE];
 
 	int	s = lTabClients[ix].s;
 	int	type = lTabClients[ix].type;
@@ -1625,7 +1625,7 @@ static	void	HandleRtNetlink(t_rtnetlink_cnx *cnx)
 int	main(int argc, char **argv)
 {
 	int		i;
-	int		Port = DEFAULT_PVDID_PORT;
+	int		Port = DEFAULT_PVDD_PORT;
 	char		*PersistentDir = NULL;
 	int		sockIcmpv6 = -1;
 	int		serverSock;

@@ -23,7 +23,7 @@ function pvddConnnect(params) {
 	if (params == undefined) {
 		params = {};
 	}
-	var Port = params.port || parseInt(process.env["PVDID_PORT"]) || 10101;
+	var Port = params.port || parseInt(process.env["PVDD_PORT"]) || 10101;
 	var autoReconnect = params.autoReconnect || false;
 	var controlCnx = params.controlConnection || false;
 	var verbose = params.verbose || false;
@@ -46,13 +46,13 @@ function pvddConnnect(params) {
 	}
 
 	function HandleMultiLine(msg) {
-		if ((r = msg.match(/PVDID_ATTRIBUTES +([^ \n]+)\n([\s\S]+)/i)) != null) {
+		if ((r = msg.match(/PVD_ATTRIBUTES +([^ \n]+)\n([\s\S]+)/i)) != null) {
 			if ((attr = getJson(r[2])) != null)
 				eventEmitter.emit("pvdAttributes", r[1], attr);
 			return;
 		}
 
-		if ((r = msg.match(/PVDID_ATTRIBUTE +([^ ]+) +([^ \n]+)\n([\s\S]+)/i)) != null) {
+		if ((r = msg.match(/PVD_ATTRIBUTE +([^ ]+) +([^ \n]+)\n([\s\S]+)/i)) != null) {
 			if ((attr = getJson(r[3])) != null)
 				eventEmitter.emit("pvdAttribute", r[1], r[2], attr);
 				eventEmitter.emit("on" + r[2], r[1], attr);
@@ -67,7 +67,7 @@ function pvddConnnect(params) {
 		 * before anything else, to reset the buffer in case
 		 * a previous multi-lines was improperly closed
 		 */
-		if (msg == "PVDID_BEGIN_MULTILINE") {
+		if (msg == "PVD_BEGIN_MULTILINE") {
 			multiLines = true;
 			fullMsg = null;
 			return;
@@ -76,7 +76,7 @@ function pvddConnnect(params) {
 		/*
 		 * End of a multi-lines section ?
 		 */
-		if (msg == "PVDID_END_MULTILINE") {
+		if (msg == "PVD_END_MULTILINE") {
 			if (fullMsg != null)
 				HandleMultiLine(fullMsg);
 			multiLines  = false;
@@ -94,7 +94,7 @@ function pvddConnnect(params) {
 		/*
 		 * Single line messages
 		 */
-		if ((r = msg.match(/PVDID_LIST+(.*)/i)) != null) {
+		if ((r = msg.match(/PVD_LIST+(.*)/i)) != null) {
 			if ((newListPvD = r[1].match(/[^ ]+/g)) == null) {
 				newListPvD = [];
 			}
@@ -103,23 +103,23 @@ function pvddConnnect(params) {
 			return;
 		}
 
-		if ((r = msg.match(/PVDID_NEW_PVDID +([^ ]+)/i)) != null) {
+		if ((r = msg.match(/PVD_NEW_PVD +([^ ]+)/i)) != null) {
 			eventEmitter.emit("newPvd", r[1]);
 			return;
 		}
 
-		if ((r = msg.match(/PVDID_DEL_PVDID +([^ ]+)/i)) != null) {
+		if ((r = msg.match(/PVD_DEL_PVD +([^ ]+)/i)) != null) {
 			eventEmitter.emit("delPvd", r[1]);
 			return;
 		}
 
-		if ((r = msg.match(/PVDID_ATTRIBUTES +([^ ]+) +(.+)/i)) != null) {
+		if ((r = msg.match(/PVD_ATTRIBUTES +([^ ]+) +(.+)/i)) != null) {
 			if ((attr = getJson(r[2])) != null)
 				eventEmitter.emit("pvdAttributes", r[1], attr);
 			return;
 		}
 
-		if ((r = msg.match(/PVDID_ATTRIBUTE +([^ ]+) +([^ ]+) +(.+)/i)) != null) {
+		if ((r = msg.match(/PVD_ATTRIBUTE +([^ ]+) +([^ ]+) +(.+)/i)) != null) {
 			if ((attr = getJson(r[3])) != null)
 				eventEmitter.emit("pvdAttribute", r[1], r[2], attr);
 				eventEmitter.emit("on" + r[2], r[1], attr);
@@ -143,41 +143,41 @@ function pvddConnnect(params) {
 	}
 
 	function createPvd(pvdName) {
-		write("PVDID_CREATE_PVDID 0 " + pvdName + "\n");
+		write("PVD_CREATE_PVD 0 " + pvdName + "\n");
 	}
 
 	function setAttribute(pvdName, attrName, attrValue) {
-		write("PVDID_BEGIN_TRANSACTION " + pvdName + "\n" +
-		      "PVDID_BEGIN_MULTILINE\n" +
-		      "PVDID_SET_ATTRIBUTE " + pvdName + " " +
+		write("PVD_BEGIN_TRANSACTION " + pvdName + "\n" +
+		      "PVD_BEGIN_MULTILINE\n" +
+		      "PVD_SET_ATTRIBUTE " + pvdName + " " +
 					attrName + "\n" +
 					JSON.stringify(attrValue, null, 12) + "\n" +
-		      "PVDID_END_MULTILINE\n" +
-		      "PVDID_END_TRANSACTION " + pvdName + "\n");
+		      "PVD_END_MULTILINE\n" +
+		      "PVD_END_TRANSACTION " + pvdName + "\n");
 	}
 
 	function unsetAttribute(pvdName, attrName) {
-		write("PVDID_UNSET_ATTRIBUTE " + pvdName + " " + attrName + "\n");
+		write("PVD_UNSET_ATTRIBUTE " + pvdName + " " + attrName + "\n");
 	}
 
 	function getList() {
-		write("PVDID_GET_LIST\n");
+		write("PVD_GET_LIST\n");
 	}
 
 	function getAttributes(pvdName) {
-		write("PVDID_GET_ATTRIBUTES " + pvdName + "\n");
+		write("PVD_GET_ATTRIBUTES " + pvdName + "\n");
 	}
 
 	function getAttribute(pvdName, attrName) {
-		write("PVDID_GET_ATTRIBUTE " + pvdName + " " + attrName + "\n");
+		write("PVD_GET_ATTRIBUTE " + pvdName + " " + attrName + "\n");
 	}
 
 	function subscribeAttribute(attrName) {
-		write("PVDID_SUBSCRIBE " + attrName + "\n");
+		write("PVD_SUBSCRIBE " + attrName + "\n");
 	}
 
 	function subscribeNotifications() {
-		write("PVDID_SUBSCRIBE_NOTIFICATIONS\n");
+		write("PVD_SUBSCRIBE_NOTIFICATIONS\n");
 	}
 
 	function internalConnection() {
@@ -189,7 +189,7 @@ function pvddConnnect(params) {
 			sock.on("connect", function() {
 				cnxed = true;
 				if (controlCnx) {
-					sock.write("PVDID_CONNECTION_PROMOTE_CONTROL\n");
+					sock.write("PVD_CONNECTION_PROMOTE_CONTROL\n");
 				}
 				eventEmitter.emit("connect");
 			});

@@ -13,8 +13,8 @@
 	See the License for the specific language governing permissions and
 	limitations under the License.
 */
-#ifndef	PVDID_RTNETLINK_H
-#define	PVDID_RTNETLINK_H
+#ifndef	PVDD_RTNETLINK_H
+#define	PVDD_RTNETLINK_H
 
 typedef struct t_rtnetlink_cnx t_rtnetlink_cnx;
 
@@ -23,6 +23,6 @@ extern	t_rtnetlink_cnx *rtnetlink_connect(void);
 extern	int rtnetlink_get_fd(t_rtnetlink_cnx *cnx);
 extern	void *rtnetlink_recv(t_rtnetlink_cnx *cnx, int *type);
 
-#endif	/* PVDID_RTNETLINK_H */
+#endif	/* PVDD_RTNETLINK_H */
 
 /* ex: set ts=8 noexpandtab wrap: */

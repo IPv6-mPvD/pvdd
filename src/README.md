@@ -29,7 +29,7 @@ The pvdid daemon is only accepting connection on 0.0.0.0. The port it listens on
 however can have been specified when the daemon has been started. In this case,
 the corresponding port must also be provided by the application to the library.
 
-If not, an environment variable (__PVDID_PORT__) will be used.
+If not, an environment variable (__PVDD\_PORT__) will be used.
 
 The basic way of interacting with the daemon is :
 
@@ -195,7 +195,7 @@ extern void	pvd_disconnect(t_pvd_connection *conn);
 
 If _Port_ is not -1, its value is used to connect to the daemon.
 
-If _Port_ is _-1_, the function will check if the **PVDID\_PORT** environment variable
+If _Port_ is _-1_, the function will check if the **PVDD\_PORT** environment variable
 exists. If it does, its value is used to connect to the daemon.
 
 Otherwise, the default port value (10101) is used.
@@ -356,7 +356,7 @@ It returns :
 + __PVD\_NO\_MESSAGE\_READ__ : a full message could not be read. That means that, usually, more
 data is needed from the connection. The application must wait for new data
 + __PVD\_MESSAGE\_READ__ : a full message has been read. It is stored in __msg__. The message
-can be a multi-lines one (typically, this can be the case for __PVDID\_ATTRIBUTE[S]__ messages).
+can be a multi-lines one (typically, this can be the case for __PVD\_ATTRIBUTE[S]__ messages).
 The application can then wait for new  data
 + __PVD\_MORE\_DATA\_AVAILABLE__ : a full message has been read (as in the __PVD\_MESSAGE\_READ__ case),
 but there is still pending data in the internal buffer. The function must be called again

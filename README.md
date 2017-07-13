@@ -30,7 +30,7 @@ where option :
         -p|--port <#> : port number for clients requests (default 10101)
         -d|--dir <path> : directory in which information is stored (none by default)
 
-Clients using the companion library can set the PVDID_PORT environment
+Clients using the companion library can set the PVDD_PORT environment
 variable to specify another port than the default one
 ~~~~
 
@@ -52,7 +52,7 @@ For now, the fields of interest are :
 * the DNSSL field (list of search domains)
 * the RDNSS field (list of recursive domain servers)
 
-When a RA carries a new PVDID, an entry for this PVDID is created in the database.
+When a RA carries a new pvd, an entry for this pvd is created in the database.
 
 Failure to create the netlink socket (because of insufficient rights) does not prevent the daemon to start.
 This capacity to start without a netlink socket is obviously mostly useful only in debug mode.
@@ -88,7 +88,7 @@ localhost address (0.0.0.0), port 10101 by default.
 Native clients (aka C clients) can make use of a companion library hiding the communication
 protocol. This library (more on it in a dedicated document) can specify a different port
 using either an application specified port value, either the content of an environment
-variable (**PVDID\_PORT**).
+variable (**PVDD\_PORT**).
 
 For consistency, it is advised that bridges for different languages/runtimes also use the same
 environment variable in their implementation (for example, node.js, lua or python bridges should
@@ -122,11 +122,11 @@ Example of such control clients can be :
 ## Regular clients
 These clients can perform the following operations :
 
-* query the list of currently registered PVDIDs
-* query all the attributes for a given PVDID
-* query a given attribute for a given PVDID
-* subscribe/unsubscribe to modifications of at least one of the attributes of a given PVDID
-* subscribe/unsubscribe to the modifications of the PVDID list
+* query the list of currently registered pvds
+* query all the attributes for a given pvd
+* query a given attribute for a given pvd
+* subscribe/unsubscribe to modifications of at least one of the attributes of a given pvd
+* subscribe/unsubscribe to the modifications of the pvd list
 
 
 ## Notifications
@@ -166,7 +166,7 @@ A client wishing its connection to be upgraded to a control connection must send
 message on the socket :
 
 ~~~~
-PVDID_CONNECTION_PROMOTE_CONTROL
+PVD_CONNECTION_PROMOTE_CONTROL
 ~~~~
 
 Once the connection has been promoted, only control messages can be sent over the connection.
@@ -182,7 +182,7 @@ API of the C companion library easier.
 The message to send to the daemon is as follows :
 
 ~~~~
-PVDID_CONNECTION_PROMOTE_BINARY
+PVD_CONNECTION_PROMOTE_BINARY
 ~~~~
 
 Currently, the C library is making use of this kind of promotion.
@@ -191,15 +191,15 @@ Currently, the C library is making use of this kind of promotion.
 The following messages permit a client querying part of the daemon's database :
 
 ~~~~
-PVDID_GET_LIST
-PVDID_GET_ATTRIBUTES <pvdname>
-PVDID_GET_ATTRIBUTE <pvdname> <attributeName>
+PVD_GET_LIST
+PVD_GET_ATTRIBUTES <pvdname>
+PVD_GET_ATTRIBUTE <pvdname> <attributeName>
 ~~~~
 
 Here, \<pvdname\> is a FQDN PvD name.
 
-**PVDID\_GET\_LIST** allows retrieving the list of the currently registered PvD.
-**PVDID\_GET\_ATTRIBUTES** allows retrieving ALL attributes for a given PvD.
+**PVD\_GET\_LIST** allows retrieving the list of the currently registered PvD.
+**PVD\_GET\_ATTRIBUTES** allows retrieving ALL attributes for a given PvD.
 
 If \<pvdname\> is * (star), the attributes for all currently registered PvD
 will be sent back.
@@ -214,10 +214,10 @@ However, it may be useful for unsollicited notifications to be made available to
 In this case, clients can specify which kinds of notifications are allowed to be sent to them :
 
 ~~~~
-PVDID_SUBSCRIBE_NOTIFICATIONS
-PVDID_UNSUBSCRIBE_NOTIFICATIONS
-PVDID_SUBSCRIBE <pvdname>
-PVDID_UNSUBSCRIBE <pvdname>
+PVD_SUBSCRIBE_NOTIFICATIONS
+PVD_UNSUBSCRIBE_NOTIFICATIONS
+PVD_SUBSCRIBE <pvdname>
+PVD_UNSUBSCRIBE <pvdname>
 ~~~~
 
 The first subscription allows general notifications to be received (ie, notifications not
@@ -233,66 +233,66 @@ The notification messages are described below, in the server's section.
 Control promoted connections can send the following messages to the server :
 
 ~~~~
-PVDID_CREATE_PVDID <pvdid> <pvdname>
-PVDID_REMOVE_PVDID <pvdname>
-PVDID_BEGIN_TRANSACTION <pvdname>
-PVDID_SET_ATTRIBUTE <pvdname> <attributeName> <attributeValue>
-PVDID_UNSET_ATTRIBUTE <pvdname> <attributeName>
-PVDID_END_TRANSACTION <pvdname>
+PVD_CREATE_PVD <pvdid> <pvdname>
+PVD_REMOVE_PVD <pvdname>
+PVD_BEGIN_TRANSACTION <pvdname>
+PVD_SET_ATTRIBUTE <pvdname> <attributeName> <attributeValue>
+PVD_UNSET_ATTRIBUTE <pvdname> <attributeName>
+PVD_END_TRANSACTION <pvdname>
 ~~~~
 
-**PVDID\_CREATE\_PVDID** allows registering a new PvD. The \<pvdid\> value is intended for
+**PVD\_CREATE\_PVD** allows registering a new PvD. The \<pvdid\> value is intended for
 future use and can be set to 0 for now.
 
-**PVDID\_REMOVE\_PVDID** unregisters a PvD. Note that clarifications still need to be done
+**PVD\_REMOVE\_PVD** unregisters a PvD. Note that clarifications still need to be done
 on the meaning of a valid (aka registered) PvD.
 
 Control clients can create/modify attributes for a given PvD. When an attribute has
 changed, the set of attributes may be notified to clients having subscribed for this
 PvD. Some control clients may want to set multiple attributes. To avoid having
 multiple notifications being sent for every modification, control clients must
-use the **PVDID_BEGIN_TRANSACTION** and **PVDID_END_TRANSACTION** messages to indicate
+use the **PVD_BEGIN_TRANSACTION** and **PVD_END_TRANSACTION** messages to indicate
 that the notification must only happen once all attributes have been set.
 
 Thus, a typical attribute modification sequence looks like :
 
 ~~~~
-PVDID_BEGIN_TRANSACTION <pvdname>
-PVDID_SET_ATTRIBUTE <pvdname> <attributeName1> <attributeValue1>
-PVDID_SET_ATTRIBUTE <pvdname> <attributeName2> <attributeValue2>
+PVD_BEGIN_TRANSACTION <pvdname>
+PVD_SET_ATTRIBUTE <pvdname> <attributeName1> <attributeValue1>
+PVD_SET_ATTRIBUTE <pvdname> <attributeName2> <attributeValue2>
 ...
-PVDID_END_TRANSACTION <pvdname>
+PVD_END_TRANSACTION <pvdname>
 ~~~~
 
-**PVDID\_SET\_ATTRIBUTE** messages received outside a transaction will be ignored (this implies that
-to set only one attribute, one must still enclose the **PVDID\_SET\_ATTRIBUTE** request with
-**PVDID\_BEGIN\_TRANSACTION** and **PVDID\_END\_TRANSACTION**).
+**PVD\_SET\_ATTRIBUTE** messages received outside a transaction will be ignored (this implies that
+to set only one attribute, one must still enclose the **PVD\_SET\_ATTRIBUTE** request with
+**PVD\_BEGIN\_TRANSACTION** and **PVD\_END\_TRANSACTION**).
 
 Messages that extend accross multiple lines must be enclosed with :
 
 ~~~~
-PVDID_BEGIN_MULTILINE
+PVD_BEGIN_MULTILINE
 ...
-PVDID_END_MULTILINE
+PVD_END_MULTILINE
 ~~~~
 
 For example, to set a JSON string attribute, a control client could use :
 
 ~~~~
-PVDID_BEGIN_MULTILINE
-PVDID_SET_ATTRIBUTE <pvdname> cost
+PVD_BEGIN_MULTILINE
+PVD_SET_ATTRIBUTE <pvdname> cost
 {
 	"currency" : "euro",
 	"cost" : 0.01,
 	"unitInMB" : 0.5
 }
-PVDID_END_MULTILINE
+PVD_END_MULTILINE
 ~~~~
 
 Note that multi-lines sections can not be imbricated.
 
-Unsetting an attribute (**PVDID\_UNSET\_ATTRIBUTE**) does not need to be enclosed in a
-**PVDID\_BEGIN\_TRANSACTION** **PVDID\_END\_TRANSACTION** sequence.
+Unsetting an attribute (**PVD\_UNSET\_ATTRIBUTE**) does not need to be enclosed in a
+**PVD\_BEGIN\_TRANSACTION** **PVD\_END\_TRANSACTION** sequence.
 
 ### Server
 The server generates the following messages :
@@ -300,60 +300,60 @@ The server generates the following messages :
 * Generic (non PvD specific) notifications/replies :
 
 ~~~~
-PVDID_LIST [<pvdname>]* (list of space-separated FQDN)
-PVDID_NEW_PVDID <pvdname>
-PVDID_DEL_PVDID <pvdname>
+PVD_LIST [<pvdname>]* (list of space-separated FQDN)
+PVD_NEW_PVD <pvdname>
+PVD_DEL_PVD <pvdname>
 ~~~~
 
 * PvD specific messages :
 
 ~~~~
-PVDID_ATTRIBUTES <pvdname> <attribueValue>
-PVDID_ATTRIBUTE <pvdname> <attributeName> <attribueValue>
+PVD_ATTRIBUTES <pvdname> <attribueValue>
+PVD_ATTRIBUTE <pvdname> <attributeName> <attribueValue>
 ~~~~
 
 or :
 
 ~~~~
-PVDID_BEGIN_MULTILINE
-PVDID_ATTRIBUTES <pvdname>
+PVD_BEGIN_MULTILINE
+PVD_ATTRIBUTES <pvdname>
 ....
-PVDID_END_MULTILINE
+PVD_END_MULTILINE
 
-PVDID_BEGIN_MULTILINE
-PVDID_ATTRIBUTE <pvdname> <attributeName>
+PVD_BEGIN_MULTILINE
+PVD_ATTRIBUTE <pvdname> <attributeName>
 ....
-PVDID_END_MULTILINE
+PVD_END_MULTILINE
 ~~~~
 
-**PVDID\_LIST** and **PVDID\_ATTRIBUTES** can be sent as responses to clients's queries, or in
+**PVD\_LIST** and **PVD\_ATTRIBUTES** can be sent as responses to clients's queries, or in
 unsollicitated manner.
 
-**PVDID\_ATTRIBUTES** is the JSON object carrying all attributes for the given PvD.
+**PVD\_ATTRIBUTES** is the JSON object carrying all attributes for the given PvD.
 
-**PVDID\_ATTRIBUTE** is a response to a **PVDID_GET_ATTRIBUTE** query. For now, it is never
+**PVD\_ATTRIBUTE** is a response to a **PVD_GET_ATTRIBUTE** query. For now, it is never
 sent in an unsollicitated manner.
 
-**PVDID\_NEW\_PVDID** is notified when a PvD appears. **PVDID\_DEL\_PVDID** is notified when a PvD
+**PVD\_NEW\_PVD** is notified when a PvD appears. **PVD\_DEL\_PVD** is notified when a PvD
 disappears.
 
-In addition to the **PVDID\_NEW\_PVDID** and **PVDID\_DEL\_PVDID**, a notification message **PVDID\_LIST**
+In addition to the **PVD\_NEW\_PVD** and **PVD\_DEL\_PVD**, a notification message **PVD\_LIST**
 with the updated list of PvD will be issued.
 
 Example : the pvd.cisco.com PvD is registered, then the pvd.free.fr PvD :
 
 ~~~~
-PVDID_NEW_PVDID pvd.cisco.com
-PVDID_LIST pvd.cisco.com
-PVDID_NEW_PVDID pvd.free.fr
-PVDID_LIST pvd.free.fr pvd.cisco.com
+PVD_NEW_PVD pvd.cisco.com
+PVD_LIST pvd.cisco.com
+PVD_NEW_PVD pvd.free.fr
+PVD_LIST pvd.free.fr pvd.cisco.com
 ~~~~
 
 We now remove the pvd.cisco.com PvD :
 
 ~~~~
-PVDID_DEL_PVDID pvd.cisco.com
-PVDID_LIST pvd.free.fr
+PVD_DEL_PVD pvd.cisco.com
+PVD_LIST pvd.free.fr
 ~~~~
 
 
@@ -370,11 +370,11 @@ The attributes are sent back as a stringified JSON object. They can be queried o
 subscribed for this PvD).
 
 Example :
-The **PVDID\_GET\_ATTRIBUTES pvd.cisco.com** query results in the following (totally unconsistent) message (for example) to be received :
+The **PVD\_GET\_ATTRIBUTES pvd.cisco.com** query results in the following (totally unconsistent) message (for example) to be received :
 
 ~~~~
-PVDID_BEGIN_MULTILINE
-PVDID_ATTRIBUTES pvd.cisco.com
+PVD_BEGIN_MULTILINE
+PVD_ATTRIBUTES pvd.cisco.com
 {
         "name" : "pvd.cisco.com",
         "id" : 100,
@@ -388,7 +388,7 @@ PVDID_ATTRIBUTES pvd.cisco.com
                 "name" : "orange.fr"
         }
 }
-PVDID_END_MULTILINE
+PVD_END_MULTILINE
 ~~~~
 
 ## TODO

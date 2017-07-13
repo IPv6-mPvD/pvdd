@@ -16,7 +16,7 @@
 	limitations under the License.
 */
 /*
- * Node module fetching and monitoring PVDID JSON extra information
+ * Node module fetching and monitoring pvd JSON extra information
  * via HTTPS
  * It handles either the 'expire' header for the message or the
  * expireDate field in the JSON object. This triggers a new request
@@ -55,7 +55,7 @@ function tlog(s) {
 }
 
 function ComplainConnection(msg, err) {
-	var Port = parseInt(process.env["PVDID_PORT"]) || 10101;
+	var Port = parseInt(process.env["PVDD_PORT"]) || 10101;
 	console.log(msg + "@pvdd:" + Port + ": " + err.code);
 }
 
