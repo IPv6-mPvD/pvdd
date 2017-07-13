@@ -77,9 +77,9 @@ typedef	struct t_pvd_connection	t_pvd_connection;
 ~~~~
 typedef struct
 {
-	int	nPvdId;
-	char	*pvdIdList[MAXPVD];
-} t_pvdid_list;
+	int	nPvd;
+	char	*pvdList[MAXPVD];
+} t_pvd_list;
 ~~~~
 
 #### List of RDNSS
@@ -88,7 +88,7 @@ typedef struct
 typedef struct {
 	int	nRdnss;
 	char	*Rdnss[3];
-} t_pvdid_rdnss;
+} t_rdnss_list;
 ~~~~
 
 #### List of DNSSL
@@ -97,7 +97,7 @@ typedef struct {
 typedef struct {
 	int	nDnssl;
 	char	*Dnssl[8];
-} t_pvdid_dnssl;
+} t_dnssl_list;
 ~~~~
 
 #### Binding a socket to a set of PvDs
@@ -115,6 +115,12 @@ to, but also to retrieve the current set of bound PvD for a given socket.
 #### Retrieving the list of PvD known by the kernel
 
 ~~~~
+struct net_pvd_route {
+	struct in6_addr	dst;
+	struct in6_addr gateway;
+	char dev_name[IFNAMSIZ];
+};
+
 struct net_pvd_attribute {
 	char			name[PVDNAMSIZ];
 	int			index;	/* unique number */
@@ -127,12 +133,33 @@ struct net_pvd_attribute {
 	int			l_flag;
 
 	unsigned long		expires;	/* lifetime field */
+
+	/*
+	 * Induced attributes
+	 */
+	int			nroutes;
+	struct net_pvd_route	routes[MAXROUTESPERPVD];
+	int			naddresses;
+	struct in6_addr		addresses[MAXADDRPERPVD];
+	int			addr_prefix_len[MAXADDRPERPVD];
+
+	int			ndnssl;
+	char			dnssl[MAXDNSSLPERPVD][FQDNSIZ];
+
+	int			nrdnss;
+	struct in6_addr		rdnss[MAXRDNSSPERPVD];
 };
 
 struct pvd_list {
 	int npvd;	/* in/out */
-	struct net_pvd_attribute pvds[MAXPVD];
+	char pvds[MAXPVD][PVDNAMSIZ];
 };
+
+struct pvd_attr {
+	char *pvdname;	/* in */
+	struct net_pvd_attribute *pvdattr;	/* out */
+};
+
 ~~~~
 
 Although this information can be obtained from the daemon, it can also be retrieved
@@ -158,12 +185,12 @@ Disconnection is done by providing a connection handle.
 The prototypes are as follows :
 
 ~~~~
-extern t_pvd_connection	*pvdid_connect(int Port);
-extern t_pvd_connection	*pvdid_reconnect(t_pvd_connection *conn);
-extern t_pvd_connection	*pvdid_get_control_socket(t_pvd_connection *conn);
-extern t_pvd_connection	*pvdid_get_binary_socket(t_pvd_connection *conn);
+extern t_pvd_connection	*pvd_connect(int Port);
+extern t_pvd_connection	*pvd_reconnect(t_pvd_connection *conn);
+extern t_pvd_connection	*pvd_get_control_socket(t_pvd_connection *conn);
+extern t_pvd_connection	*pvd_get_binary_socket(t_pvd_connection *conn);
 
-extern void	pvdid_disconnect(t_pvd_connection *conn);
+extern void	pvd_disconnect(t_pvd_connection *conn);
 ~~~~
 
 If _Port_ is not -1, its value is used to connect to the daemon.
@@ -212,16 +239,16 @@ information on the nature of the error, if any.
 Here are they :
 
 ~~~~
-extern int	pvdid_get_pvdid_list_sync(
-			t_pvd_connection *conn, t_pvdid_list *pvdIdList);
-extern int	pvdid_get_attributes_sync(
+extern int	pvd_get_pvd_list_sync(
+			t_pvd_connection *conn, t_pvd_list *pvdIdList);
+extern int	pvd_get_attributes_sync(
 			t_pvd_connection *conn, char *pvdname, char **attributes);
-extern int	pvdid_get_attribute_sync(
+extern int	pvd_get_attribute_sync(
 			t_pvd_connection *conn, char *pvdname, char *attrName, char **attrValue);
-extern int	pvdid_get_rdnss_sync(
-			t_pvd_connection *conn, char *pvdname, t_pvdid_rdnss *PtRdnss);
-extern int	pvdid_get_dnssl_sync(
-			t_pvd_connection *conn, char *pvdname, t_pvdid_dnssl *PtDnssl);
+extern int	pvd_get_rdnss_sync(
+			t_pvd_connection *conn, char *pvdname, t_rdnss_list *PtRdnss);
+extern int	pvd_get_dnssl_sync(
+			t_pvd_connection *conn, char *pvdname, t_dnssl_list *PtDnssl);
 ~~~~
 
 The _pvdid\_get\_attributes\_sync_ function returns all the attributes collected
@@ -242,8 +269,8 @@ The _t\_pvdid\_rdnss_ and _t\_pvdid\_dnssl_ structures above contain strings tha
 be freed by calling :
 
 ~~~~
-extern void	pvdid_release_rdnss(t_pvdid_rdnss *PtRdnss);
-extern void	pvdid_release_dnssl(t_pvdid_dnssl *PtDnssl);
+extern void	pvd_release_rdnss(t_rdnss_list *PtRdnss);
+extern void	pvd_release_dnssl(t_dnssl_list *PtDnssl);
 ~~~~
 
 From an implementation point of view, the _conn parameter is simply cloned to create
@@ -266,15 +293,15 @@ mechanism the application feels comfortable with (sscanf(), strcmp(), etc.).
 The functions are :
 
 ~~~~
-extern int	pvdid_get_pvdid_list(t_pvd_connection *conn);
-extern int	pvdid_get_attributes(t_pvd_connection *conn, char *pvdname);
-extern int	pvdid_get_attribute(t_pvd_connection *conn, char *pvdname, char *attrName);
-extern int	pvdid_subscribe_notifications(t_pvd_connection *conn);
-extern int	pvdid_unsubscribe_notifications(t_pvd_connection *conn);
-extern int	pvdid_subscribe_pvdid_notifications(t_pvd_connection *conn, char *pvdname);
-extern int	pvdid_unsubscribe_pvdid_notifications(t_pvd_connection *conn, char *pvdname);
-extern int	pvdid_get_rdnss(t_pvd_connection *conn, char *pvdname);
-extern int	pvdid_get_dnssl(t_pvd_connection *conn, char *pvdname);
+extern int	pvd_get_pvd_list(t_pvd_connection *conn);
+extern int	pvd_get_attributes(t_pvd_connection *conn, char *pvdname);
+extern int	pvd_get_attribute(t_pvd_connection *conn, char *pvdname, char *attrName);
+extern int	pvd_subscribe_notifications(t_pvd_connection *conn);
+extern int	pvd_unsubscribe_notifications(t_pvd_connection *conn);
+extern int	pvd_subscribe_pvd_notifications(t_pvd_connection *conn, char *pvdname);
+extern int	pvd_unsubscribe_pvd_notifications(t_pvd_connection *conn, char *pvdname);
+extern int	pvd_get_rdnss(t_pvd_connection *conn, char *pvdname);
+extern int	pvd_get_dnssl(t_pvd_connection *conn, char *pvdname);
 ~~~~
 
 Following requests, the daemon should send replies. The format of these replies
@@ -283,11 +310,11 @@ is specified on the top-level __README.md__.
 ### Helpers
 
 ~~~~
-extern int	pvdid_parse_pvdid_list(char *msg, t_pvdid_list *pvdIdList);
-extern int	pvdid_parse_rdnss(char *msg, t_pvdid_rdnss *PtRdnss);
-extern int	pvdid_parse_dnssl(char *msg, t_pvdid_dnssl *PtDnssl);
-extern void	pvdid_release_rdnss(t_pvdid_rdnss *PtRdnss);
-extern void	pvdid_release_dnssl(t_pvdid_dnssl *PtDnssl);
+extern int	pvd_parse_pvd_list(char *msg, t_pvd_list *pvdIdList);
+extern int	pvd_parse_rdnss(char *msg, t_rdnss_list *PtRdnss);
+extern int	pvd_parse_dnssl(char *msg, t_dnssl_list *PtDnssl);
+extern void	pvd_release_rdnss(t_rdnss_list *PtRdnss);
+extern void	pvd_release_dnssl(t_dnssl_list *PtDnssl);
 ~~~~
 
 The following functions make it easier for an application to retrieve messages from
@@ -295,13 +322,13 @@ the daemon. They are intended to be used in a loop-based program (based on _sele
 or any similar mechanism provided by different frameworks/libraries).
 
 ~~~~
-extern	int		pvdid_read_data(t_pvd_connection *conn);
-extern	int		pvdid_get_message(t_pvd_connection *conn, int *multiLines, char **msg);
+extern	int		pvd_read_data(t_pvd_connection *conn);
+extern	int		pvd_get_message(t_pvd_connection *conn, int *multiLines, char **msg);
 ~~~~
 
 These two functions are meant to be used together :
 
-__pvdid_read_data()__ must be called when there is some data available on the connection.
+__pvd_read_data()__ must be called when there is some data available on the connection.
 
 It will store the read data into an internal buffer of limited size (currently 4K). It also
 handles binary as  well as regular connections (binary connections first send the payload
@@ -344,7 +371,10 @@ talking to the daemon).
 ~~~~
 extern	int	sock_bind_to_pvd(int s, char *pvdname);
 extern	int	sock_get_bound_pvd(int s, char *pvdname);
-extern	int	pvd_get_list(struct pvd_list *pvl);
+extern	int	kernel_get_pvdlist(struct pvd_list *pvl);
+extern	int	kernel_get_pvd_attributes(char *pvdname, struct net_pvd_attribute *attr);
+extern	int	kernel_create_pvd(char *pvdname);
+extern	int	kernel_update_pvd_attr(char *pvdname, char *attrName, char *attrValue);
 ~~~~
 
 _sock\_bind\_to\_pvd()_ and _sock\_get\_bound\_pvd()_ might be used if an application wishes to
@@ -358,7 +388,7 @@ code of the library) as an example.
 The _pvdname_ parameter of _sock\_get\_bound\_pvd()_ is the address of an array of sufficient size
 (aka PVDNAMSIZ).
 
-The _pvl_ parameter of the _pvd\_get\_list()_ function must be initialized by the
+The _pvl_ parameter of the _kernel\_get\_pvdlist()_ function must be initialized by the
 caller : the __npvd__ field of the structure must contain the dimension of the
 __pvds__ field. It is safe for the application to use the _struct pvd\_list_ structure
 defined in the header file and to initiailze the _npvd_ field to __MAXPVD__.
@@ -385,5 +415,5 @@ They are :
 ## TODO
 There is a lack of consistency in the various namings or in the way items should be freed/released.
 
-We need to decide whether to prefix things with __pvd__ or with __pvdid__.
+We need to decide whether to prefix things with __pvd__ or with __pvd__.
 

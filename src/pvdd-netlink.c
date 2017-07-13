@@ -89,14 +89,14 @@ struct nd_opt_route_info_local { /* route information */
 
 /* */
 struct nd_opt_pvdid {
-	uint8_t nd_opt_pvdid_type;
-	uint8_t nd_opt_pvdid_len;
-	uint8_t nd_opt_pvdid_seq : 4;
-	uint8_t nd_opt_pvdid_h : 1;
-	uint8_t nd_opt_pvdid_l : 1;
-	uint16_t nd_opt_pvdid_reserved : 10;
-	uint32_t nd_opt_pvdid_lifetime;
-	unsigned char nd_opt_pvdid_name[];
+	uint8_t nd_opt_pvd_type;
+	uint8_t nd_opt_pvd_len;
+	uint8_t nd_opt_pvd_seq : 4;
+	uint8_t nd_opt_pvd_h : 1;
+	uint8_t nd_opt_pvd_l : 1;
+	uint16_t nd_opt_pvd_reserved : 10;
+	uint32_t nd_opt_pvd_lifetime;
+	unsigned char nd_opt_pvd_name[];
 };
 
 
@@ -138,7 +138,7 @@ struct nd_opt_dnssl_info_local {
 #define	ND_OPT_PVDID	253	// Waiting for IANA attribution
 #endif
 
-struct nd_opt_pvdid_info_local {
+struct nd_opt_pvd_info_local {
 	uint8_t nd_opt_pvdidi_type;
 	uint8_t nd_opt_pvdidi_len;
 	uint8_t nd_opt_pvdidi_reserved1;
@@ -182,7 +182,7 @@ void process_ra(unsigned char *msg,
 	int pvdIdH = 0;
 	int pvdIdL = 0;
 	uint32_t pvdIdLifetime = 0;
-	t_PvdId *PtPvdId;
+	t_Pvd *PtPvd;
 	char *TabDNSSL[16];	// More than sufficient ?
 	int nDNSSL = 0;
 	char *TabRDNSS[8];	// No more than 3 anyway
@@ -351,14 +351,14 @@ void process_ra(unsigned char *msg,
 				break;
 			}
 
-			pvdIdSeq = pvd->nd_opt_pvdid_seq;
-			pvdIdH = pvd->nd_opt_pvdid_h;
-			pvdIdL = pvd->nd_opt_pvdid_l;
-			pvdIdLifetime = ntohl(pvd->nd_opt_pvdid_lifetime);
+			pvdIdSeq = pvd->nd_opt_pvd_seq;
+			pvdIdH = pvd->nd_opt_pvd_h;
+			pvdIdL = pvd->nd_opt_pvd_l;
+			pvdIdLifetime = ntohl(pvd->nd_opt_pvd_lifetime);
 
 			// We will modify in place the buffer to put '.' where
 			// needed
-			unsigned char *pt = pvd->nd_opt_pvdid_name;
+			unsigned char *pt = pvd->nd_opt_pvd_name;
 			int labelLen = *pt++;
 
 			if (labelLen == 0) {
@@ -375,7 +375,7 @@ void process_ra(unsigned char *msg,
 			}
 			// Hopefully ends with a '\0'
 
-			strcpy(pvdname, (char *) &pvd->nd_opt_pvdid_name[1]);
+			strcpy(pvdname, (char *) &pvd->nd_opt_pvd_name[1]);
 
 			break;
 		}
@@ -389,7 +389,7 @@ void process_ra(unsigned char *msg,
 	}
 	_DLOG(LOG_DEBUG, "processed RA\n");
 
-	// If we have seen a PvdId, we will update some fields of interest
+	// If we have seen a Pvd, we will update some fields of interest
 	// However, if the RA is becoming invalid, we must notify that the PVD
 	// has disappeared !
 	if (pvdname[0] == '\0') {
@@ -399,26 +399,26 @@ void process_ra(unsigned char *msg,
 
 	if (radvert->nd_ra_router_lifetime == 0) {
 		DLOG("RA becoming invalidated. Unregistering\n");
-		UnregisterPvdId(pvdname);
+		UnregisterPvd(pvdname);
 		goto Exit;	// Release allocated structures
 	}
 
-	if ((PtPvdId = PvdIdBeginTransaction(pvdname)) == NULL) {
+	if ((PtPvd = PvdBeginTransaction(pvdname)) == NULL) {
 		return;
 	}
 
-	PvdIdSetAttr(PtPvdId, "sequenceNumber", GetIntStr(pvdIdSeq));
-	PvdIdSetAttr(PtPvdId, "hFlag", GetIntStr(pvdIdH));
-	PvdIdSetAttr(PtPvdId, "lFlag", GetIntStr(pvdIdL));
-	PvdIdSetAttr(PtPvdId, "lifetime", GetIntStr(pvdIdLifetime));
-	PvdIdSetAttr(PtPvdId, "interface", Stringify(JsonString(if_name)));
-	PvdIdSetAttr(PtPvdId, "srcAddress", Stringify(addr_str));
+	PvdSetAttr(PtPvd, "sequenceNumber", GetIntStr(pvdIdSeq));
+	PvdSetAttr(PtPvd, "hFlag", GetIntStr(pvdIdH));
+	PvdSetAttr(PtPvd, "lFlag", GetIntStr(pvdIdL));
+	PvdSetAttr(PtPvd, "lifetime", GetIntStr(pvdIdLifetime));
+	PvdSetAttr(PtPvd, "interface", Stringify(JsonString(if_name)));
+	PvdSetAttr(PtPvd, "srcAddress", Stringify(addr_str));
 
 	if (nDNSSL > 0) {
 		char	*pt = JsonArray(nDNSSL, TabDNSSL);
 
 		if (pt != NULL) {
-			PvdIdSetAttr(PtPvdId, "DNSSL", pt);
+			PvdSetAttr(PtPvd, "dnssl", pt);
 			free(pt);
 		}
 	}
@@ -427,7 +427,7 @@ void process_ra(unsigned char *msg,
 		char	*pt = JsonArray(nRDNSS, TabRDNSS);
 
 		if (pt != NULL) {
-			PvdIdSetAttr(PtPvdId, "RDNSS", pt);
+			PvdSetAttr(PtPvd, "rdnss", pt);
 			free(pt);
 		}
 	}
@@ -454,11 +454,11 @@ void process_ra(unsigned char *msg,
 				i == nPrefix - 1 ? "" : ",");
 		}
 		SBAddString(&SB, "}\n");
-		PvdIdSetAttr(PtPvdId, "prefixes", SB.String);
+		PvdSetAttr(PtPvd, "prefixes", SB.String);
 		SBUninit(&SB);
 	}
 
-	PvdIdEndTransaction(PtPvdId);
+	PvdEndTransaction(PtPvd);
 
 Exit :
 	for (i = 0; i < nDNSSL; i++) {

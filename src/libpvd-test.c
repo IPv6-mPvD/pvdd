@@ -27,15 +27,15 @@
 static	void	GetDnssl(t_pvd_connection *conn, char *pvdname)
 {
 	int		i;
-	t_pvdid_dnssl	dnssl;
+	t_dnssl_list	dnssl;
 
-	if (pvdid_get_dnssl_sync(conn, "pvd.cisco.com", &dnssl) == 0) {
+	if (pvd_get_dnssl_sync(conn, "pvd.cisco.com", &dnssl) == 0) {
 		printf("DNSSL %s :", pvdname);
-		for (i = 0; i < dnssl.nDnssl; i++) {
-			printf(" %s", dnssl.Dnssl[i]);
+		for (i = 0; i < dnssl.ndnssl; i++) {
+			printf(" %s", dnssl.dnssl[i]);
 		}
 		printf("\n");
-		pvdid_release_dnssl(&dnssl);
+		pvd_release_dnssl(&dnssl);
 	}
 }
 
@@ -44,8 +44,8 @@ int	main(int argc, char **argv)
 	t_pvd_connection	*mainS;
 	t_pvd_connection	*binaryS;
 	char			*attributes;
-	t_pvdid_list		pvdIdList;
-	t_pvdid_rdnss		rdnss;
+	t_pvd_list		pvdList;
+	t_rdnss_list		rdnss;
 	struct timeval		tv;
 	int			i;
 
@@ -53,19 +53,19 @@ int	main(int argc, char **argv)
 	printf("          1st step\n");
 	printf("===================================\n");
 
-	if ((mainS = pvdid_connect(-1)) == NULL) {
+	if ((mainS = pvd_connect(-1)) == NULL) {
 		fprintf(stderr, "Error connecting to pvdid-daemon\n");
 		return(1);
 	}
 
-	if ((binaryS = pvdid_get_binary_socket(mainS)) == NULL) {
+	if ((binaryS = pvd_get_binary_socket(mainS)) == NULL) {
 		fprintf(stderr, "Error creating binary socket to pvdid-daemon\n");
 	}
 	if (binaryS != NULL) {
-		pvdid_disconnect(binaryS);
+		pvd_disconnect(binaryS);
 	}
 
-	if (pvdid_get_attributes_sync(mainS, "pvd.cisco.com", &attributes) == 0) {
+	if (pvd_get_attributes_sync(mainS, "pvd.cisco.com", &attributes) == 0) {
 		printf("Attributes for pvd.cisco.com : %s\n", attributes);
 		free(attributes);
 	}
@@ -73,23 +73,23 @@ int	main(int argc, char **argv)
 		printf("Error retrieving attributes for pvd.cisco.com\n");
 	}
 
-	if (pvdid_get_pvdid_list_sync(mainS, &pvdIdList) == 0) {
+	if (pvd_get_pvd_list_sync(mainS, &pvdList) == 0) {
 		printf("PvD list :");
 
-		for (i = 0; i < pvdIdList.nPvdId; i++) {
-			printf(" %s", pvdIdList.pvdIdList[i]);
-			free(pvdIdList.pvdIdList[i]);
+		for (i = 0; i < pvdList.npvd; i++) {
+			printf(" %s", pvdList.pvdnames[i]);
+			free(pvdList.pvdnames[i]);
 		}
 		printf("\n");
 	}
 
-	if (pvdid_get_rdnss_sync(mainS, "pvd.cisco.com", &rdnss) == 0) {
+	if (pvd_get_rdnss_sync(mainS, "pvd.cisco.com", &rdnss) == 0) {
 		printf("RDNSS :");
-		for (i = 0; i < rdnss.nRdnss; i++) {
-			printf(" %s", rdnss.Rdnss[i]);
+		for (i = 0; i < rdnss.nrdnss; i++) {
+			printf(" %s", rdnss.rdnss[i]);
 		}
 		printf("\n");
-		pvdid_release_rdnss(&rdnss);
+		pvd_release_rdnss(&rdnss);
 	}
 
 	GetDnssl(mainS, "pvd.cisco.com");
@@ -102,10 +102,10 @@ int	main(int argc, char **argv)
 	// Some other processes must run to trigger various
 	// notifications. This may take some time (2 minutes
 	// for example using the provided test 'infrastructure'
-	pvdid_subscribe_notifications(mainS);
-	pvdid_subscribe_pvdid_notifications(mainS, "*");
-	pvdid_get_pvdid_list(mainS);
-	pvdid_get_attributes(mainS, "*");
+	pvd_subscribe_notifications(mainS);
+	pvd_subscribe_pvd_notifications(mainS, "*");
+	pvd_get_pvd_list(mainS);
+	pvd_get_attributes(mainS, "*");
 
 	tv.tv_sec = 180;	// Loop up to 3 minutes
 	tv.tv_usec = 0;
@@ -133,7 +133,7 @@ int	main(int argc, char **argv)
 			char	*msg;
 			int	multiLines;
 
-			if ((rc = pvdid_read_data(mainS)) != PVD_READ_OK) {
+			if ((rc = pvd_read_data(mainS)) != PVD_READ_OK) {
 				// Connection with the daemon broken -> exit
 				if (errno != 0) {
 					perror("recv");
@@ -145,7 +145,7 @@ int	main(int argc, char **argv)
 			}
 
 			do {
-				rc = pvdid_get_message(mainS, &multiLines, &msg);
+				rc = pvd_get_message(mainS, &multiLines, &msg);
 
 				if (rc != PVD_NO_MESSAGE_READ) {
 					printf("================================\n");
@@ -182,8 +182,8 @@ int	main(int argc, char **argv)
 		}
 
 		if (rc == 0) {
-			pvdid_get_attributes(mainS, "localhost");
-			pvdid_get_attribute(mainS, "pvd.orange.com", "name");
+			pvd_get_attributes(mainS, "localhost");
+			pvd_get_attribute(mainS, "pvd.orange.com", "name");
 			GetDnssl(mainS, "pvd.cisco.com");
 			continue;
 		}
@@ -192,7 +192,7 @@ int	main(int argc, char **argv)
 			char	*msg;
 			int	multiLines;
 
-			if ((rc = pvdid_read_data(mainS)) != PVD_READ_OK) {
+			if ((rc = pvd_read_data(mainS)) != PVD_READ_OK) {
 				// Connection with the daemon broken -> exit
 				if (errno != 0) {
 					perror("recv");
@@ -205,7 +205,7 @@ int	main(int argc, char **argv)
 			}
 
 			do {
-				rc = pvdid_get_message(mainS, &multiLines, &msg);
+				rc = pvd_get_message(mainS, &multiLines, &msg);
 
 				if (rc != PVD_NO_MESSAGE_READ) {
 					printf("================================\n");
@@ -218,7 +218,7 @@ int	main(int argc, char **argv)
 	}
 
 
-	pvdid_disconnect(mainS);
+	pvd_disconnect(mainS);
 	return(0);
 }
 

@@ -16,14 +16,14 @@
 #ifndef	PVDID_DAEMON_H
 #define	PVDID_DAEMON_H
 
-struct t_PvdId;
+struct t_Pvd;
 
-typedef	struct t_PvdId t_PvdId;
+typedef	struct t_Pvd t_Pvd;
 
-extern t_PvdId	*PvdIdBeginTransaction(char *pvdname);
-extern int	PvdIdSetAttr(t_PvdId *PtPvdId, char *Key, char *Value);
-extern int	UnregisterPvdId(char *pvdname);
-extern void	PvdIdEndTransaction(t_PvdId *PtPvdId);
+extern t_Pvd	*PvdBeginTransaction(char *pvdname);
+extern int	PvdSetAttr(t_Pvd *PtPvd, char *Key, char *Value);
+extern int	UnregisterPvd(char *pvdname);
+extern void	PvdEndTransaction(t_Pvd *PtPvd);
 
 #endif	/* PVDID_DAEMON_H */
 

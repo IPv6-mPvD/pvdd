@@ -176,9 +176,9 @@ static	int	GetInt(char *s, int *PtN)
 	return(-1);
 }
 
-// pvdid_connect : returns a general connection (socket) with the pvdid
+// pvd_connect : returns a general connection (socket) with the pvdid
 // daemon
-t_pvd_connection	*pvdid_connect(int Port)
+t_pvd_connection	*pvd_connect(int Port)
 {
 	int			s;
 	struct sockaddr_in 	sa;
@@ -251,7 +251,7 @@ static	int	reopen_connection(int fd)
 	return(s);
 }
 
-t_pvd_connection	*pvdid_reconnect(t_pvd_connection *conn)
+t_pvd_connection	*pvd_reconnect(t_pvd_connection *conn)
 {
 	int			s;
 	t_pvd_connection	*newconn = NULL;
@@ -266,7 +266,7 @@ t_pvd_connection	*pvdid_reconnect(t_pvd_connection *conn)
 	return(newconn);
 }
 
-void	pvdid_disconnect(t_pvd_connection *conn)
+void	pvd_disconnect(t_pvd_connection *conn)
 {
 	if (conn != NULL) {
 		close(conn->fd);
@@ -274,13 +274,13 @@ void	pvdid_disconnect(t_pvd_connection *conn)
 	}
 }
 
-t_pvd_connection	*pvdid_get_control_socket(t_pvd_connection *conn)
+t_pvd_connection	*pvd_get_control_socket(t_pvd_connection *conn)
 {
 	t_pvd_connection	*newconn = NULL;
 
-	if ((newconn = pvdid_reconnect(conn)) != NULL) {
+	if ((newconn = pvd_reconnect(conn)) != NULL) {
 		if (SendExact(newconn->fd, "PVDID_CONNECTION_PROMOTE_CONTROL\n") == -1) {
-			pvdid_disconnect(newconn);
+			pvd_disconnect(newconn);
 			return(NULL);
 		}
 		newconn->type = CONTROL_CONNECTION;
@@ -290,13 +290,13 @@ t_pvd_connection	*pvdid_get_control_socket(t_pvd_connection *conn)
 
 }
 
-t_pvd_connection	*pvdid_get_binary_socket(t_pvd_connection *conn)
+t_pvd_connection	*pvd_get_binary_socket(t_pvd_connection *conn)
 {
 	t_pvd_connection	*newconn = NULL;
 
-	if ((newconn = pvdid_reconnect(conn)) != NULL) {
+	if ((newconn = pvd_reconnect(conn)) != NULL) {
 		if (SendExact(newconn->fd, "PVDID_CONNECTION_PROMOTE_BINARY\n") == -1) {
-			pvdid_disconnect(newconn);
+			pvd_disconnect(newconn);
 			return(NULL);
 		}
 		newconn->type = BINARY_CONNECTION;
@@ -306,58 +306,58 @@ t_pvd_connection	*pvdid_get_binary_socket(t_pvd_connection *conn)
 
 }
 
-// pvdid_get_pvdid_list : send a PVDID_GET_LIST message to the daemon
+// pvd_get_pvd_list : send a PVDID_GET_LIST message to the daemon
 // It does not wait for a reply
-int	pvdid_get_pvdid_list(t_pvd_connection *conn)
+int	pvd_get_pvd_list(t_pvd_connection *conn)
 {
 	return(SendExact(pvd_connection_fd(conn), "PVDID_GET_LIST\n"));
 }
 
-// pvdid_parse_pvdid_list : fill in the output array with PvD names
+// pvd_parse_pvd_list : fill in the output array with PvD names
 // They need to be freed using free() by the caller
-int	pvdid_parse_pvdid_list(char *msg, t_pvdid_list *pvdIdList)
+int	pvd_parse_pvd_list(char *msg, t_pvd_list *pvdList)
 {
 	char	*pts = NULL;
 	char	*pvdname = NULL;
 
-	pvdIdList->nPvdId = 0;
+	pvdList->npvd = 0;
 
 	for (;(pvdname = strtok_r(msg, " ", &pts)) != NULL; msg = NULL) {
 		// Ignore empty names (consecutive spaces)
 		if (*pvdname == '\0') {
 			continue;
 		}
-		if (pvdIdList->nPvdId < DIM(pvdIdList->pvdIdList)) {
-			pvdIdList->pvdIdList[pvdIdList->nPvdId++] = strdup(pvdname);
+		if (pvdList->npvd < DIM(pvdList->pvdnames)) {
+			pvdList->pvdnames[pvdList->npvd++] = strdup(pvdname);
 		}
 	}
 	return(0);
 }
 
-// pvdid_get_pvdid_list_sync : send a PVDID_GET_LIST message to the daemon
+// pvd_get_pvd_list_sync : send a PVDID_GET_LIST message to the daemon
 // It waits for a reply
-int	pvdid_get_pvdid_list_sync(t_pvd_connection *conn, t_pvdid_list *pvdIdList)
+int	pvd_get_pvd_list_sync(t_pvd_connection *conn, t_pvd_list *pvdList)
 {
 	t_pvd_connection	*newconn = NULL;
 	int			rc = -1;
 	char			*msg;
 	char			pvdString[2048];
 
-	if ((newconn = pvdid_get_binary_socket(conn)) != NULL) {
-		if (pvdid_get_pvdid_list(newconn) == 0 && ReadMsg(newconn->fd, &msg) == 0) {
+	if ((newconn = pvd_get_binary_socket(conn)) != NULL) {
+		if (pvd_get_pvd_list(newconn) == 0 && ReadMsg(newconn->fd, &msg) == 0) {
 			if (sscanf(msg, "PVDID_LIST %[^\n]\n", pvdString) == 1) {
 				// pvdString contains a list of space separated FQDN pvdIds
-				pvdid_parse_pvdid_list(pvdString, pvdIdList);
+				pvd_parse_pvd_list(pvdString, pvdList);
 				rc = 0;
 			}
 			free(msg);
 		}
-		pvdid_disconnect(newconn);
+		pvd_disconnect(newconn);
 	}
 	return(rc);
 }
 
-int	pvdid_get_attributes(t_pvd_connection *conn, char *pvdname)
+int	pvd_get_attributes(t_pvd_connection *conn, char *pvdname)
 {
 	char	s[2048];
 
@@ -367,10 +367,10 @@ int	pvdid_get_attributes(t_pvd_connection *conn, char *pvdname)
 	return(SendExact(pvd_connection_fd(conn), s));
 }
 
-// pvdid_get_attributes_sync : the attributes output parameter contain the
+// pvd_get_attributes_sync : the attributes output parameter contain the
 // JSON string of all attributes. It needs to be freed using free() by the
 // caller
-int	pvdid_get_attributes_sync(
+int	pvd_get_attributes_sync(
 		t_pvd_connection *conn,
 		char *pvdname,
 		char **attributes)
@@ -381,8 +381,8 @@ int	pvdid_get_attributes_sync(
 
 	*attributes = NULL;
 
-	if ((newconn = pvdid_get_binary_socket(conn)) != NULL) {
-		if (pvdid_get_attributes(newconn, pvdname) == 0 &&
+	if ((newconn = pvd_get_binary_socket(conn)) != NULL) {
+		if (pvd_get_attributes(newconn, pvdname) == 0 &&
 		    ReadMsg(newconn->fd, &msg) == 0) {
 			sprintf(Pattern, "PVDID_ATTRIBUTES %s", pvdname);
 
@@ -391,12 +391,12 @@ int	pvdid_get_attributes_sync(
 			}
 			free(msg);
 		}
-		pvdid_disconnect(newconn);
+		pvd_disconnect(newconn);
 	}
 	return(*attributes == NULL ? -1 : 0);
 }
 
-int	pvdid_get_attribute(t_pvd_connection *conn, char *pvdname, char *attrName)
+int	pvd_get_attribute(t_pvd_connection *conn, char *pvdname, char *attrName)
 {
 	char	s[2048];
 
@@ -406,7 +406,7 @@ int	pvdid_get_attribute(t_pvd_connection *conn, char *pvdname, char *attrName)
 	return(SendExact(pvd_connection_fd(conn), s));
 }
 
-int	pvdid_get_attribute_sync(
+int	pvd_get_attribute_sync(
 		t_pvd_connection *conn,
 		char *pvdname, 
 		char *attrName, char **attrValue)
@@ -417,8 +417,8 @@ int	pvdid_get_attribute_sync(
 
 	*attrValue = NULL;
 
-	if ((newconn = pvdid_get_binary_socket(conn)) != NULL) {
-		if (pvdid_get_attribute(newconn, pvdname, attrName) == 0 &&
+	if ((newconn = pvd_get_binary_socket(conn)) != NULL) {
+		if (pvd_get_attribute(newconn, pvdname, attrName) == 0 &&
 		    ReadMsg(newconn->fd, &msg) == 0) {
 			sprintf(Pattern, "PVDID_ATTRIBUTE %s %s", pvdname, attrName);
 
@@ -428,23 +428,23 @@ int	pvdid_get_attribute_sync(
 
 			free(msg);
 		}
-		pvdid_disconnect(newconn);
+		pvd_disconnect(newconn);
 	}
 
 	return(*attrValue == NULL ? -1 : 0);
 }
 
-int	pvdid_subscribe_notifications(t_pvd_connection *conn)
+int	pvd_subscribe_notifications(t_pvd_connection *conn)
 {
 	return(SendExact(pvd_connection_fd(conn), "PVDID_SUBSCRIBE_NOTIFICATIONS\n"));
 }
 
-int	pvdid_unsubscribe_notifications(t_pvd_connection *conn)
+int	pvd_unsubscribe_notifications(t_pvd_connection *conn)
 {
 	return(SendExact(pvd_connection_fd(conn), "PVDID_UNSUBSCRIBE_NOTIFICATIONS\n"));
 }
 
-int	pvdid_subscribe_pvdid_notifications(t_pvd_connection *conn, char *pvdname)
+int	pvd_subscribe_pvd_notifications(t_pvd_connection *conn, char *pvdname)
 {
 	char	s[2048];
 
@@ -454,7 +454,7 @@ int	pvdid_subscribe_pvdid_notifications(t_pvd_connection *conn, char *pvdname)
 	return(SendExact(pvd_connection_fd(conn), s));
 }
 
-int	pvdid_unsubscribe_pvdid_notifications(t_pvd_connection *conn, char *pvdname)
+int	pvd_unsubscribe_pvd_notifications(t_pvd_connection *conn, char *pvdname)
 {
 	char	s[2048];
 
@@ -498,59 +498,59 @@ static	int	ParseStringArray(char *msg, char **Array, int Size)
 	return(n);
 }
 
-// pvdid_parse_rdnss : msq contains a JSON array of strings
+// pvd_parse_rdnss : msq contains a JSON array of strings
 // The string can either be alone on the line, either preceded
 // by PVDID_ATTRIBUTE <pvdname> RDNSS. These strings are in6 addresses
-int	pvdid_parse_rdnss(char *msg, t_pvdid_rdnss *PtRdnss)
+int	pvd_parse_rdnss(char *msg, t_rdnss_list *PtRdnss)
 {
-	char	Rdnss[2048];
+	char	rdnss[2048];
 
-	if (sscanf(msg, "PVDID_ATTRIBUTE %*[^ ] RDNSS %[^\n]", Rdnss) == 1) {
-		msg = Rdnss;
+	if (sscanf(msg, "PVDID_ATTRIBUTE %*[^ ] RDNSS %[^\n]", rdnss) == 1) {
+		msg = rdnss;
 	}
 
-	PtRdnss->nRdnss = ParseStringArray(msg, PtRdnss->Rdnss, DIM(PtRdnss->Rdnss));
+	PtRdnss->nrdnss = ParseStringArray(msg, PtRdnss->rdnss, DIM(PtRdnss->rdnss));
 
 	return(0);
 }
 
-void	pvdid_release_rdnss(t_pvdid_rdnss *PtRdnss)
+void	pvd_release_rdnss(t_rdnss_list *PtRdnss)
 {
 	int	i;
 
-	for (i = 0; i < PtRdnss->nRdnss; i++) {
-		free(PtRdnss->Rdnss[i]);
+	for (i = 0; i < PtRdnss->nrdnss; i++) {
+		free(PtRdnss->rdnss[i]);
 	}
-	PtRdnss->nRdnss = 0;
+	PtRdnss->nrdnss = 0;
 }
 
-// pvdid_parse_dnssl : msq contains a JSON array of strings
+// pvd_parse_dnssl : msq contains a JSON array of strings
 // The string can either be alone on the line, either preceded
 // by PVDID_ATTRIBUTE <pvdname> DNSSL
-int	pvdid_parse_dnssl(char *msg, t_pvdid_dnssl *PtDnssl)
+int	pvd_parse_dnssl(char *msg, t_dnssl_list *PtDnssl)
 {
-	char	Dnssl[2048];
+	char	dnssl[2048];
 
-	if (sscanf(msg, "PVDID_ATTRIBUTE %*[^ ] DNSSL %[^\n]", Dnssl) == 1) {
-		msg = Dnssl;
+	if (sscanf(msg, "PVDID_ATTRIBUTE %*[^ ] DNSSL %[^\n]", dnssl) == 1) {
+		msg = dnssl;
 	}
 
-	PtDnssl->nDnssl = ParseStringArray(msg, PtDnssl->Dnssl, DIM(PtDnssl->Dnssl));
+	PtDnssl->ndnssl = ParseStringArray(msg, PtDnssl->dnssl, DIM(PtDnssl->dnssl));
 
 	return(0);
 }
 
-void	pvdid_release_dnssl(t_pvdid_dnssl *PtDnssl)
+void	pvd_release_dnssl(t_dnssl_list *PtDnssl)
 {
 	int	i;
 
-	for (i = 0; i < PtDnssl->nDnssl; i++) {
-		free(PtDnssl->Dnssl[i]);
+	for (i = 0; i < PtDnssl->ndnssl; i++) {
+		free(PtDnssl->dnssl[i]);
 	}
-	PtDnssl->nDnssl = 0;
+	PtDnssl->ndnssl = 0;
 }
 
-int	pvdid_get_rdnss(t_pvd_connection *conn, char *pvdname)
+int	pvd_get_rdnss(t_pvd_connection *conn, char *pvdname)
 {
 	char	s[2048];
 
@@ -559,32 +559,32 @@ int	pvdid_get_rdnss(t_pvd_connection *conn, char *pvdname)
 	return(SendExact(pvd_connection_fd(conn), s));
 }
 
-int	pvdid_get_rdnss_sync(
+int	pvd_get_rdnss_sync(
 		t_pvd_connection *conn,
 		char *pvdname,
-		t_pvdid_rdnss *PtRdnss)
+		t_rdnss_list *PtRdnss)
 {
 	t_pvd_connection	*newconn = NULL;
 	int			rc = -1;
 	char			*msg;
 	char			Pattern[2048];
 
-	if ((newconn = pvdid_get_binary_socket(conn)) != NULL) {
-		if (pvdid_get_rdnss(newconn, pvdname) == 0 &&
+	if ((newconn = pvd_get_binary_socket(conn)) != NULL) {
+		if (pvd_get_rdnss(newconn, pvdname) == 0 &&
 		    ReadMsg(newconn->fd, &msg) == 0) {
 			sprintf(Pattern, "PVDID_ATTRIBUTE %s RDNSS\n", pvdname);
 
 			if (strncmp(msg, Pattern, strlen(Pattern)) == 0) {
-				rc = pvdid_parse_rdnss(&msg[strlen(Pattern)], PtRdnss);
+				rc = pvd_parse_rdnss(&msg[strlen(Pattern)], PtRdnss);
 			}
 			free(msg);
 		}
-		pvdid_disconnect(newconn);
+		pvd_disconnect(newconn);
 	}
 	return(rc);
 }
 
-int	pvdid_get_dnssl(t_pvd_connection *conn, char *pvdname)
+int	pvd_get_dnssl(t_pvd_connection *conn, char *pvdname)
 {
 	char	s[2048];
 
@@ -593,27 +593,27 @@ int	pvdid_get_dnssl(t_pvd_connection *conn, char *pvdname)
 	return(SendExact(pvd_connection_fd(conn), s));
 }
 
-int	pvdid_get_dnssl_sync(
+int	pvd_get_dnssl_sync(
 		t_pvd_connection *conn,
 		char *pvdname,
-		t_pvdid_dnssl *PtDnssl)
+		t_dnssl_list *PtDnssl)
 {
 	t_pvd_connection	*newconn = NULL;
 	int			rc = -1;
 	char			*msg;
 	char			Pattern[2048];
 
-	if ((newconn = pvdid_get_binary_socket(conn)) != NULL) {
-		if (pvdid_get_dnssl(newconn, pvdname) == 0 &&
+	if ((newconn = pvd_get_binary_socket(conn)) != NULL) {
+		if (pvd_get_dnssl(newconn, pvdname) == 0 &&
 		    ReadMsg(newconn->fd, &msg) == 0) {
 			sprintf(Pattern, "PVDID_ATTRIBUTE %s DNSSL\n", pvdname);
 
 			if (strncmp(msg, Pattern, strlen(Pattern)) == 0) {
-				rc = pvdid_parse_dnssl(&msg[strlen(Pattern)], PtDnssl);
+				rc = pvd_parse_dnssl(&msg[strlen(Pattern)], PtDnssl);
 			}
 			free(msg);
 		}
-		pvdid_disconnect(newconn);
+		pvd_disconnect(newconn);
 	}
 	return(rc);
 }
@@ -659,11 +659,11 @@ static	void	StripTrailingNewLine(t_StringBuffer *SB)
  *
  * The philosophy is the following :
  * 1) application waits for data to be available for a connection (poll/select)
- * 2) it calls pvdid_read_data() (and handles return codes properly)
- * 3) if data has been read, it calls pvdid_get_message() to retrieve from
+ * 2) it calls pvd_read_data() (and handles return codes properly)
+ * 3) if data has been read, it calls pvd_get_message() to retrieve from
  * the received data one or more messages :
  * 	3.1) if the return code says PVD_MORE_DATA_AVAILABLE, a message
- * 	has been returned and the application MUST call pvdid_get_message()
+ * 	has been returned and the application MUST call pvd_get_message()
  * 	again (there is pending data still in the buffer, maybe a full
  * 	message, maybe a partial message)
  * 	3.2) if the return code says PVD_MESSAGE_READ, a message has
@@ -673,7 +673,7 @@ static	void	StripTrailingNewLine(t_StringBuffer *SB)
  * 	from the daemon)
  * 4) loop on 1
  */
-int	pvdid_read_data(t_pvd_connection *conn)
+int	pvd_read_data(t_pvd_connection *conn)
 {
 	int	n, m;
 
@@ -706,7 +706,7 @@ int	pvdid_read_data(t_pvd_connection *conn)
 	return(PVD_READ_OK);
 }
 
-int	pvdid_get_message(t_pvd_connection *conn, int *multiLines, char **msg)
+int	pvd_get_message(t_pvd_connection *conn, int *multiLines, char **msg)
 {
 	char	*pt = conn->ReadBuffer;
 	char	*EOL;
@@ -880,7 +880,7 @@ int	sock_get_bound_pvd(int s, char *pvdname)
 	return(rc);
 }
 
-int	pvd_get_list(struct pvd_list *pvl)
+int	kernel_get_pvdlist(struct pvd_list *pvl)
 {
 	int		s;
 	int		rc;
@@ -897,13 +897,7 @@ int	pvd_get_list(struct pvd_list *pvl)
 	return(rc);
 }
 
-int	kernel_get_pvdlist(struct pvd_list *pvl)
-{
-	return(pvd_get_list(pvl));
-}
-
-
-int	pvd_get_attributes(char *pvdname, struct net_pvd_attribute *attr)
+int	kernel_get_pvd_attributes(char *pvdname, struct net_pvd_attribute *attr)
 {
 	int		s;
 	int		rc;
@@ -924,11 +918,6 @@ int	pvd_get_attributes(char *pvdname, struct net_pvd_attribute *attr)
 	close(s);
 
 	return(rc);
-}
-
-int	kernel_get_pvd_attributes(char *pvdname, struct net_pvd_attribute *attr)
-{
-	return(pvd_get_attributes(pvdname, attr));
 }
 
 int	kernel_create_pvd(char *pvdname)

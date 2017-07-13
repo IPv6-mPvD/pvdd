@@ -95,29 +95,29 @@
 #define	SUBSCRIPTION_DEL_PVDID	0x04
 
 /* types definitions --------------------------------------------- */
-typedef	struct t_PvdIdNameList
+typedef	struct t_PvdNameList
 {
 	char	*pvdname;	// strduped
-	struct t_PvdIdNameList	*next;
-}	t_PvdIdNameList;
+	struct t_PvdNameList	*next;
+}	t_PvdNameList;
 
-typedef	struct t_PvdIdClient
+typedef	struct t_PvdClient
 {
 	int		s;
 	int		type;
-	t_PvdIdNameList	*Subscription;
+	t_PvdNameList	*Subscription;
 	int		SubscriptionMask;
 	char		*pvdIdTransaction;	// NULL is no transaction
 	int		multiLines;
 	t_StringBuffer	SB;
-}	t_PvdIdClient;
+}	t_PvdClient;
 
 typedef	struct {
 	char	*Key;	// strduped
 	char	*Value;	// strduped
 }	t_PvdAttribute;
 
-typedef	struct t_PvdId {
+typedef	struct t_Pvd {
 	char	*pvdname;	// strduped
 	int	pvdid;
 	int	dirty;
@@ -141,21 +141,21 @@ typedef	struct t_PvdId {
 	int	nUserDnssl;
 	char	*UserDnssl[MAXDNSSLPERPVD];
 
-	struct t_PvdId	*next;
-}	t_PvdId;
+	struct t_Pvd	*next;
+}	t_Pvd;
 
 /* variables declarations ---------------------------------------- */
 static	int		lNClients = 0;
-static	t_PvdIdClient	lTabClients[MAXCLIENTS];
+static	t_PvdClient	lTabClients[MAXCLIENTS];
 
-static	t_PvdId	*lFirstPvdId = NULL;
+static	t_Pvd	*lFirstPvd = NULL;
 
 static	char	*lMyName = "";
 
 static	int	lKernelHasPvdSupport = false;
 
 /* functions definitions ----------------------------------------- */
-static	int	NotifyPvdIdAttributes(t_PvdId *PtPvdId);
+static	int	NotifyPvdAttributes(t_Pvd *PtPvd);
 static	int	RemoveSubscription(int ix, char *pvdname);
 
 static	int	usage(char *s)
@@ -188,10 +188,10 @@ static	int	usage(char *s)
 	return(s == NULL ? 0 : 1);
 }
 
-// PvdIdRdnssToJsonArray : aggregate the kernel and user RDNSS fields
+// PvdRdnssToJsonArray : aggregate the kernel and user RDNSS fields
 // and buid a JSON string for this array of in6_addr values
 // The returned string must be released by calling free()
-char	*PvdIdRdnssToJsonArray(t_PvdId *PtPvdId)
+char	*PvdRdnssToJsonArray(t_Pvd *PtPvd)
 {
 	int 		nAddr;
 	struct in6_addr Addresses[MAXRDNSSPERPVD * 2];
@@ -200,31 +200,31 @@ char	*PvdIdRdnssToJsonArray(t_PvdId *PtPvdId)
 	char		sAddr[INET6_ADDRSTRLEN];
 
 	nAddr = 0;
-	for (i = 0; i < PtPvdId->nKernelRdnss; i++) {
+	for (i = 0; i < PtPvd->nKernelRdnss; i++) {
 		for (j = 0; j < nAddr; j++) {
 			if (memcmp(
 				&Addresses[j],
-				&PtPvdId->KernelRdnss[i],
+				&PtPvd->KernelRdnss[i],
 				sizeof(Addresses[j])) == 0) {
 				break;
 			}
 		}
 		if (j >= nAddr && nAddr < DIM(Addresses)) {
-			Addresses[nAddr++] = PtPvdId->KernelRdnss[i];
+			Addresses[nAddr++] = PtPvd->KernelRdnss[i];
 		}
 	}
 
-	for (i = 0; i < PtPvdId->nUserRdnss; i++) {
+	for (i = 0; i < PtPvd->nUserRdnss; i++) {
 		for (j = 0; j < nAddr; j++) {
 			if (memcmp(
 				&Addresses[j],
-				&PtPvdId->UserRdnss[i],
+				&PtPvd->UserRdnss[i],
 				sizeof(Addresses[j])) == 0) {
 				break;
 			}
 		}
 		if (j >= nAddr && nAddr < DIM(Addresses)) {
-			Addresses[nAddr++] = PtPvdId->UserRdnss[i];
+			Addresses[nAddr++] = PtPvd->UserRdnss[i];
 		}
 	}
 
@@ -243,39 +243,39 @@ char	*PvdIdRdnssToJsonArray(t_PvdId *PtPvdId)
 	return(SB.String);
 }
 
-// PvdIdDnsslToJsonArray : aggregate the kernel and user RDNSS fields
+// PvdDnsslToJsonArray : aggregate the kernel and user RDNSS fields
 // and buid a JSON string for this array of in6_addr values
 // The returned string must be released by calling free()
-char	*PvdIdDnsslToJsonArray(t_PvdId *PtPvdId)
+char	*PvdDnsslToJsonArray(t_Pvd *PtPvd)
 {
-	int 		nDnssl;
-	char		*Dnssl[MAXDNSSLPERPVD * 2];
+	int 		ndnssl;
+	char		*dnssl[MAXDNSSLPERPVD * 2];
 	int		i, j;
 
-	nDnssl = 0;
-	for (i = 0; i < PtPvdId->nKernelDnssl; i++) {
-		for (j = 0; j < nDnssl; j++) {
-			if (strcmp(Dnssl[j], PtPvdId->KernelDnssl[i]) == 0) {
+	ndnssl = 0;
+	for (i = 0; i < PtPvd->nKernelDnssl; i++) {
+		for (j = 0; j < ndnssl; j++) {
+			if (strcmp(dnssl[j], PtPvd->KernelDnssl[i]) == 0) {
 				break;
 			}
 		}
-		if (j >= nDnssl && nDnssl < DIM(Dnssl)) {
-			Dnssl[nDnssl++] = PtPvdId->KernelDnssl[i];
+		if (j >= ndnssl && ndnssl < DIM(dnssl)) {
+			dnssl[ndnssl++] = PtPvd->KernelDnssl[i];
 		}
 	}
 
-	for (i = 0; i < PtPvdId->nUserDnssl; i++) {
-		for (j = 0; j < nDnssl; j++) {
-			if (strcmp(Dnssl[j], PtPvdId->UserDnssl[i]) == 0) {
+	for (i = 0; i < PtPvd->nUserDnssl; i++) {
+		for (j = 0; j < ndnssl; j++) {
+			if (strcmp(dnssl[j], PtPvd->UserDnssl[i]) == 0) {
 				break;
 			}
 		}
-		if (j >= nDnssl && nDnssl < DIM(Dnssl)) {
-			Dnssl[nDnssl++] = PtPvdId->UserDnssl[i];
+		if (j >= ndnssl && ndnssl < DIM(dnssl)) {
+			dnssl[ndnssl++] = PtPvd->UserDnssl[i];
 		}
 	}
 
-	return(JsonArray(nDnssl, Dnssl));
+	return(JsonArray(ndnssl, dnssl));
 }
 
 // In6AddrToJsonArray : convert an array of in6_addr into its JSON string representation
@@ -382,7 +382,7 @@ static	void	HandleConnection(int serverSock)
 	}
 
 	if (lNClients < DIM(lTabClients)) {
-		t_PvdIdClient	*PtClient = &lTabClients[lNClients++];
+		t_PvdClient	*PtClient = &lTabClients[lNClients++];
 
 		PtClient->s = s;
 		PtClient->type = SOCKET_GENERAL;
@@ -398,18 +398,18 @@ static	void	HandleConnection(int serverSock)
 	}
 }
 
-// GetPvdId : given a pvdname, return the address of the pvd structure
-static	t_PvdId	*GetPvdId(char *pvdname)
+// GetPvd : given a pvdname, return the address of the pvd structure
+static	t_Pvd	*GetPvd(char *pvdname)
 {
-	t_PvdId	*PtPvdId;
+	t_Pvd	*PtPvd;
 
 	if (pvdname == NULL) {
 		return(NULL);
 	}
 
-	for (PtPvdId = lFirstPvdId; PtPvdId != NULL; PtPvdId = PtPvdId->next) {
-		if (EQSTR(PtPvdId->pvdname, pvdname)) {
-			return(PtPvdId);
+	for (PtPvd = lFirstPvd; PtPvd != NULL; PtPvd = PtPvd->next) {
+		if (EQSTR(PtPvd->pvdname, pvdname)) {
+			return(PtPvd);
 		}
 	}
 
@@ -423,9 +423,9 @@ static	t_PvdId	*GetPvdId(char *pvdname)
 // list is released
 static	int	RemoveSubscription(int ix, char *pvdname)
 {
-	t_PvdIdNameList	*pt = lTabClients[ix].Subscription;
-	t_PvdIdNameList	*ptNext = NULL;
-	t_PvdIdNameList	*ptPrev = NULL;
+	t_PvdNameList	*pt = lTabClients[ix].Subscription;
+	t_PvdNameList	*ptNext = NULL;
+	t_PvdNameList	*ptPrev = NULL;
 
 	while (pt != NULL) {
 		ptNext = pt->next;
@@ -451,8 +451,8 @@ static	int	RemoveSubscription(int ix, char *pvdname)
 // client
 static	void	ReleaseSubscriptionsList(int ix)
 {
-	t_PvdIdNameList *pt = lTabClients[ix].Subscription;
-	t_PvdIdNameList *ptNext = NULL;
+	t_PvdNameList *pt = lTabClients[ix].Subscription;
+	t_PvdNameList *ptNext = NULL;
 
 	while (pt != NULL) {
 		ptNext = pt->next;
@@ -469,7 +469,7 @@ static	void	ReleaseSubscriptionsList(int ix)
 // ix is supposed to be within range
 static	void	ReleaseClient(int ix)
 {
-	t_PvdIdClient	*pt = &lTabClients[ix];
+	t_PvdClient	*pt = &lTabClients[ix];
 
 	DLOG("releasing client %d\n", ix);
 
@@ -488,7 +488,7 @@ static	void	ReleaseClient(int ix)
 // given pvdid
 static	int	AddSubscription(int ix, char *pvdname)
 {
-	t_PvdIdNameList	*pt = lTabClients[ix].Subscription;
+	t_PvdNameList	*pt = lTabClients[ix].Subscription;
 
 	// Verifiy that the client has not already subscribed to this pvd
 	while (pt != NULL) {
@@ -499,7 +499,7 @@ static	int	AddSubscription(int ix, char *pvdname)
 	}
 
 	// Add it at the head
-	if ((pt = (t_PvdIdNameList *) malloc(sizeof(t_PvdIdNameList))) == NULL) {
+	if ((pt = (t_PvdNameList *) malloc(sizeof(t_PvdNameList))) == NULL) {
 		DLOG("AddSubscription : memory overflow\n");
 		return(-1);
 	}
@@ -526,18 +526,18 @@ static	int	WriteString(int s, char *str, int binary)
 	return(write(s, str, l) == l);
 }
 
-// SendPvdIdList : send the current list of pvd to a client that
+// SendPvdList : send the current list of pvd to a client that
 // has requested it
-static	int	SendPvdIdList(int s, int binary)
+static	int	SendPvdList(int s, int binary)
 {
 	char	msg[2048];
-	t_PvdId	*PtPvdId;
+	t_Pvd	*PtPvd;
 
 	// FIXME : check for overflow
 	sprintf(msg, "PVDID_LIST");
-	for (PtPvdId = lFirstPvdId; PtPvdId != NULL; PtPvdId = PtPvdId->next) {
+	for (PtPvd = lFirstPvd; PtPvd != NULL; PtPvd = PtPvd->next) {
 		strcat(msg, " ");
-		strcat(msg, PtPvdId->pvdname);
+		strcat(msg, PtPvd->pvdname);
 	}
 	strcat(msg, "\n");
 	if (! WriteString(s, msg, binary)) {
@@ -546,13 +546,13 @@ static	int	SendPvdIdList(int s, int binary)
 	return(0);
 }
 
-// NotifyPvdIdState : send a notification message for this pvd (NEW/DEL) to
+// NotifyPvdState : send a notification message for this pvd (NEW/DEL) to
 // clients having subscribed to such events
-static	void	NotifyPvdIdState(char *pvdname, int Mask)
+static	void	NotifyPvdState(char *pvdname, int Mask)
 {
 	int		i;
 	char		msg[2048];
-	t_PvdIdClient	*pt;
+	t_PvdClient	*pt;
 
 	msg[sizeof(msg) - 1] = '\0';
 
@@ -566,7 +566,7 @@ static	void	NotifyPvdIdState(char *pvdname, int Mask)
 			continue;
 		}
 		if ((pt->SubscriptionMask & Mask) != 0) {
-			DLOG("NotifyPvdIdState : sending on socket %d msg %s", pt->s, msg);
+			DLOG("NotifyPvdState : sending on socket %d msg %s", pt->s, msg);
 			if (! WriteString(pt->s, msg, pt->type == SOCKET_BINARY)) {
 				ReleaseClient(i);
 			}
@@ -574,22 +574,22 @@ static	void	NotifyPvdIdState(char *pvdname, int Mask)
 	}
 }
 
-// NotifyPvdIdList : send the full pvd list to clients that have subscribed to
+// NotifyPvdList : send the full pvd list to clients that have subscribed to
 // this notification
-static	void	NotifyPvdIdList(void)
+static	void	NotifyPvdList(void)
 {
-	t_PvdId		*PtPvdId;
+	t_Pvd		*PtPvd;
 	char		msg[2048];
-	t_PvdIdClient	*pt;
+	t_PvdClient	*pt;
 	int		i;
 
 	msg[sizeof(msg) - 1] = '\0';
 
 	// FIXME : check for overflow
 	sprintf(msg, "PVDID_LIST ");	// Important : there must always be a ' '
-	for (PtPvdId = lFirstPvdId; PtPvdId != NULL; PtPvdId = PtPvdId->next) {
-		strcat(msg, PtPvdId->pvdname);
-		if (PtPvdId->next != NULL) {
+	for (PtPvd = lFirstPvd; PtPvd != NULL; PtPvd = PtPvd->next) {
+		strcat(msg, PtPvd->pvdname);
+		if (PtPvd->next != NULL) {
 			strcat(msg, " ");
 		}
 	}
@@ -600,7 +600,7 @@ static	void	NotifyPvdIdList(void)
 			continue;
 		}
 		if ((pt->SubscriptionMask & SUBSCRIPTION_LIST) != 0) {
-			DLOG("NotifyPvdIdList : sending on socket %d msg %s", pt->s, msg);
+			DLOG("NotifyPvdList : sending on socket %d msg %s", pt->s, msg);
 			if (! WriteString(pt->s, msg, pt->type == SOCKET_BINARY)) {
 				ReleaseClient(i);
 			}
@@ -609,142 +609,142 @@ static	void	NotifyPvdIdList(void)
 }
 
 /*
- * GetPvdIdByName : given a pvd name, retrieve its t_PvdId
+ * GetPvdByName : given a pvd name, retrieve its t_Pvd
  */
-static	t_PvdId *GetPvdIdByName(char *pvdname)
+static	t_Pvd *GetPvdByName(char *pvdname)
 {
-	t_PvdId	*PtPvdId;
+	t_Pvd	*PtPvd;
 
-	for (PtPvdId = lFirstPvdId; PtPvdId != NULL; PtPvdId = PtPvdId->next) {
-		if (EQSTR(PtPvdId->pvdname, pvdname)) {
-			return(PtPvdId);
+	for (PtPvd = lFirstPvd; PtPvd != NULL; PtPvd = PtPvd->next) {
+		if (EQSTR(PtPvd->pvdname, pvdname)) {
+			return(PtPvd);
 		}
 	}
 	return(NULL);
 }
 
-// RegisterPvdId : register a new pvdid. It should normally come from
+// RegisterPvd : register a new pvdid. It should normally come from
 // the kernel notifications, but, for debug purpose, might also be
 // provided by clients on control sockets
 // We may want to notify all clients (except control ones) that a
 // new pvdid has appeared
-static	t_PvdId	*RegisterPvdId(int pvdid, char *pvdname)
+static	t_Pvd	*RegisterPvd(int pvdid, char *pvdname)
 {
-	t_PvdId	*PtPvdId;
+	t_Pvd	*PtPvd;
 	char	*tmpStr;
 
-	for (PtPvdId = lFirstPvdId; PtPvdId != NULL; PtPvdId = PtPvdId->next) {
-		if (EQSTR(PtPvdId->pvdname, pvdname)) {
+	for (PtPvd = lFirstPvd; PtPvd != NULL; PtPvd = PtPvd->next) {
+		if (EQSTR(PtPvd->pvdname, pvdname)) {
 			if (pvdid != -1) {
-				PtPvdId->pvdid = pvdid;
+				PtPvd->pvdid = pvdid;
 			}
-			PtPvdId->dirty = true;
-			return(PtPvdId);
+			PtPvd->dirty = true;
+			return(PtPvd);
 		}
 	}
 
-	if ((PtPvdId = NEW(t_PvdId)) == NULL) {
+	if ((PtPvd = NEW(t_Pvd)) == NULL) {
 		DLOG("allocating pvdid : memory overflow\n");
 		return(NULL);
 	}
-	memset(PtPvdId, 0, sizeof(*PtPvdId));
+	memset(PtPvd, 0, sizeof(*PtPvd));
 
 	if ((tmpStr = alloca(strlen(pvdname) * 3 + 2)) == NULL) {
-		free(PtPvdId);
+		free(PtPvd);
 		DLOG("allocating pvdid : memory overflow\n");
 		return(NULL);
 	}
 
-	PtPvdId->pvdid = pvdid == -1 ? 0 : pvdid;
-	PtPvdId->pvdname = strdup(pvdname);	// TODO : check overflow
-	PtPvdId->dirty = false;
-	memset(PtPvdId->Attributes, 0, sizeof(PtPvdId->Attributes));
+	PtPvd->pvdid = pvdid == -1 ? 0 : pvdid;
+	PtPvd->pvdname = strdup(pvdname);	// TODO : check overflow
+	PtPvd->dirty = false;
+	memset(PtPvd->Attributes, 0, sizeof(PtPvd->Attributes));
 
 	/*
 	 * Create the set of well known attributes (representing the
 	 * various fields of the IETF definition of a PvD
 	 */
 	sprintf(tmpStr, "\"%s\"", JsonString(pvdname));
-	PvdIdSetAttr(PtPvdId, "name", tmpStr);
-	sprintf(tmpStr, "%d", PtPvdId->pvdid);
-	PvdIdSetAttr(PtPvdId, "id", tmpStr);
-	PvdIdSetAttr(PtPvdId, "sequenceNumber", "0");
-	PvdIdSetAttr(PtPvdId, "hFlag", "0");	// by default
-	PvdIdSetAttr(PtPvdId, "lFlag", "0");
-	PvdIdSetAttr(PtPvdId, "lifetime", GetIntStr(0xffffffff));
+	PvdSetAttr(PtPvd, "name", tmpStr);
+	sprintf(tmpStr, "%d", PtPvd->pvdid);
+	PvdSetAttr(PtPvd, "id", tmpStr);
+	PvdSetAttr(PtPvd, "sequenceNumber", "0");
+	PvdSetAttr(PtPvd, "hFlag", "0");	// by default
+	PvdSetAttr(PtPvd, "lFlag", "0");
+	PvdSetAttr(PtPvd, "lifetime", GetIntStr(0xffffffff));
 
 	// Link it at the head of the list
-	PtPvdId->next = lFirstPvdId;
-	lFirstPvdId = PtPvdId;
+	PtPvd->next = lFirstPvd;
+	lFirstPvd = PtPvd;
 
 	DLOG("pvdid %s/%d registered\n", pvdname, pvdid);
 
-	NotifyPvdIdState(pvdname, SUBSCRIPTION_NEW_PVDID);
-	NotifyPvdIdList();
+	NotifyPvdState(pvdname, SUBSCRIPTION_NEW_PVDID);
+	NotifyPvdList();
 
-	return(PtPvdId);
+	return(PtPvd);
 }
 
-// UnregisterPvdId : unregister a pvdid. We won't touch the subscription lists
+// UnregisterPvd : unregister a pvdid. We won't touch the subscription lists
 // (because the pvd might reappear). We may want to send notification to
 // all clients (except control clients)
-int	UnregisterPvdId(char *pvdname)
+int	UnregisterPvd(char *pvdname)
 {
 	int	i;
-	t_PvdId	*PtPvdId, *PtPvdIdPrev = NULL;
+	t_Pvd	*PtPvd, *PtPvdPrev = NULL;
 
-	for (PtPvdId = lFirstPvdId; PtPvdId != NULL; PtPvdId = PtPvdId->next) {
-		if (EQSTR(PtPvdId->pvdname, pvdname)) {
+	for (PtPvd = lFirstPvd; PtPvd != NULL; PtPvd = PtPvd->next) {
+		if (EQSTR(PtPvd->pvdname, pvdname)) {
 			// Unlink the pvd and frees all of its fields
-			if (PtPvdIdPrev == NULL) {
-				lFirstPvdId = PtPvdId->next;
+			if (PtPvdPrev == NULL) {
+				lFirstPvd = PtPvd->next;
 			}
 			else {
-				PtPvdIdPrev->next = PtPvdId->next;
+				PtPvdPrev->next = PtPvd->next;
 			}
-			for (i = 0; i < DIM(PtPvdId->Attributes); i++) {
-				if (PtPvdId->Attributes[i].Key != NULL) {
-					free(PtPvdId->Attributes[i].Key);
+			for (i = 0; i < DIM(PtPvd->Attributes); i++) {
+				if (PtPvd->Attributes[i].Key != NULL) {
+					free(PtPvd->Attributes[i].Key);
 				}
-				if (PtPvdId->Attributes[i].Value != NULL) {
-					free(PtPvdId->Attributes[i].Value);
+				if (PtPvd->Attributes[i].Value != NULL) {
+					free(PtPvd->Attributes[i].Value);
 				}
 			}
-			free(PtPvdId->pvdname);
-			free(PtPvdId);
-			NotifyPvdIdState(pvdname, SUBSCRIPTION_DEL_PVDID);
-			NotifyPvdIdList();
+			free(PtPvd->pvdname);
+			free(PtPvd);
+			NotifyPvdState(pvdname, SUBSCRIPTION_DEL_PVDID);
+			NotifyPvdList();
 			return(0);
 		}
-		PtPvdIdPrev = PtPvdId;
+		PtPvdPrev = PtPvd;
 	}
 	return(0);
 }
 
 // DeleteAttribute : delete a given attribute for a given pvd
-static	int	DeleteAttribute(t_PvdId *PtPvdId, char *Key)
+static	int	DeleteAttribute(t_Pvd *PtPvd, char *Key)
 {
 	int	i;
 
-	if (PtPvdId == NULL) {
+	if (PtPvd == NULL) {
 		DLOG("DeleteAttribute : unknown pvd\n");
 		return(0);
 	}
 
-	DLOG("DeleteAttribute : pvdname = %s, Key = %s\n", PtPvdId->pvdname, Key);
+	DLOG("DeleteAttribute : pvdname = %s, Key = %s\n", PtPvd->pvdname, Key);
 
 	for (i = 0; i < MAXATTRIBUTES; i++) {
-		char	*attrKey = PtPvdId->Attributes[i].Key;
-		char	*attrVal = PtPvdId->Attributes[i].Value;
+		char	*attrKey = PtPvd->Attributes[i].Key;
+		char	*attrVal = PtPvd->Attributes[i].Value;
 
 		if (attrKey != NULL && EQSTR(attrKey, Key)) {
 			if (attrVal != NULL) {
 				free(attrVal);
-				PtPvdId->Attributes[i].Value = NULL;
+				PtPvd->Attributes[i].Value = NULL;
 			}
 			free(attrKey);
-			PtPvdId->Attributes[i].Key = NULL;
-			NotifyPvdIdAttributes(PtPvdId);
+			PtPvd->Attributes[i].Key = NULL;
+			NotifyPvdAttributes(PtPvd);
 			break;
 		}
 	}
@@ -754,24 +754,24 @@ static	int	DeleteAttribute(t_PvdId *PtPvdId, char *Key)
 
 // UpdateAttribute : update (ie, replace)/create a given attribute for
 // a given pvd
-static	int	UpdateAttribute(t_PvdId *PtPvdId, char *Key, char *Value)
+static	int	UpdateAttribute(t_Pvd *PtPvd, char *Key, char *Value)
 {
 	int	i;
 	char	*key_;
 	char	*value_;
 	int	firstAvailable = -1;
 
-	if (PtPvdId == NULL) {
+	if (PtPvd == NULL) {
 		DLOG("UpdateAttribute : unknown pvd\n");
 		return(0);
 	}
 
 	DLOG("UpdateAttribute : pvdname = %s, Key = %s, Value = %s\n",
-		PtPvdId->pvdname, Key, Value);
+		PtPvd->pvdname, Key, Value);
 
 	for (i = 0; i < MAXATTRIBUTES; i++) {
-		char	*attrKey = PtPvdId->Attributes[i].Key;
-		char	*attrVal = PtPvdId->Attributes[i].Value;
+		char	*attrKey = PtPvd->Attributes[i].Key;
+		char	*attrVal = PtPvd->Attributes[i].Value;
 
 		if (attrKey == NULL && firstAvailable == -1) {
 			firstAvailable = i;
@@ -787,12 +787,12 @@ static	int	UpdateAttribute(t_PvdId *PtPvdId, char *Key, char *Value)
 				if (attrVal != NULL) {
 					free(attrVal);
 				}
-				PtPvdId->Attributes[i].Value = value_;
-				PtPvdId->dirty = true;
+				PtPvd->Attributes[i].Value = value_;
+				PtPvd->dirty = true;
 				return(0);
 			}
 			DLOG("memory overflow allocating attribute %s/%s for %s\n",
-				Key, Value, PtPvdId->pvdname);
+				Key, Value, PtPvd->pvdname);
 			return(0);
 		}
 	}
@@ -801,31 +801,31 @@ static	int	UpdateAttribute(t_PvdId *PtPvdId, char *Key, char *Value)
 		i = firstAvailable;
 		if ((key_ = strdup(Key)) != NULL) {
 			if ((value_ = strdup(Value)) != NULL) {
-				PtPvdId->Attributes[i].Key = key_;
-				PtPvdId->Attributes[i].Value = value_;
-				PtPvdId->dirty = true;
+				PtPvd->Attributes[i].Key = key_;
+				PtPvd->Attributes[i].Value = value_;
+				PtPvd->dirty = true;
 				return(0);
 			}
 			free(key_);
 			DLOG("memory overflow allocating attribute %s/%s for %s\n",
 			     Key, Value,
-			     PtPvdId->pvdname);
+			     PtPvd->pvdname);
 		}
 	}
 	if (i > MAXATTRIBUTES) {
-		DLOG("too many attributes defined for %s\n", PtPvdId->pvdname);
+		DLOG("too many attributes defined for %s\n", PtPvd->pvdname);
 	}
 	return(0);
 }
 
-// PvdIdAttributes2Json : converts all key/value entries for a given pvd
+// PvdAttributes2Json : converts all key/value entries for a given pvd
 // to a JSON object. The semantic of some fields is well known (hummm, maybe not
 // so true)
-static	char	*PvdIdAttributes2Json(t_PvdId *PtPvdId)
+static	char	*PvdAttributes2Json(t_Pvd *PtPvd)
 {
 	int		i;
 	t_StringBuffer	SB;
-	t_PvdAttribute	*Attributes = PtPvdId->Attributes;
+	t_PvdAttribute	*Attributes = PtPvd->Attributes;
 
 	SBInit(&SB);
 
@@ -844,7 +844,7 @@ static	char	*PvdIdAttributes2Json(t_PvdId *PtPvdId)
 
 	SBAddString(&SB, "\n}\n");
 
-	DLOG("PvdIdAttributes2Json(%s) : %s\n", PtPvdId->pvdname, SB.String);
+	DLOG("PvdAttributes2Json(%s) : %s\n", PtPvd->pvdname, SB.String);
 
 	return(SB.String);
 }
@@ -915,19 +915,19 @@ static	int	SendMultiLines(int s, int binary, char *Prefix, ...)
 	return(0);
 }
 
-// NotifyPvdIdAttributes : when one or more attributes for a given pvd has/have
+// NotifyPvdAttributes : when one or more attributes for a given pvd has/have
 // changed, we must notify all clients interested in this pvd of the change(s)
 // For now, we send all attributes (JSON format) at once
-static	int	NotifyPvdIdAttributes(t_PvdId *PtPvdId)
+static	int	NotifyPvdAttributes(t_Pvd *PtPvd)
 {
 	int	i;
-	char	*pvdname = PtPvdId->pvdname;
+	char	*pvdname = PtPvd->pvdname;
 	int	FlagInterested = false;
 	char	Prefix[1024];
 	char	*JsonString;
 
 	for (i = 0; i < lNClients; i++) {
-		t_PvdIdNameList	*pt = lTabClients[i].Subscription;
+		t_PvdNameList	*pt = lTabClients[i].Subscription;
 
 		if (lTabClients[i].s == -1) {
 			continue;
@@ -948,7 +948,7 @@ static	int	NotifyPvdIdAttributes(t_PvdId *PtPvdId)
 		return(0);
 	}
 
-	if ((JsonString = PvdIdAttributes2Json(PtPvdId)) == NULL) {
+	if ((JsonString = PvdAttributes2Json(PtPvd)) == NULL) {
 		// Don't fail here (this is not the caller's fault)
 		return(0);
 	}
@@ -957,7 +957,7 @@ static	int	NotifyPvdIdAttributes(t_PvdId *PtPvdId)
 
 	for (i = 0; i < lNClients; i++) {
 		int		s = lTabClients[i].s;
-		t_PvdIdNameList	*pt = lTabClients[i].Subscription;
+		t_PvdNameList	*pt = lTabClients[i].Subscription;
 
 		if (s == -1 || lTabClients[i].type == SOCKET_CONTROL) {
 			continue;
@@ -983,31 +983,31 @@ static	int	NotifyPvdIdAttributes(t_PvdId *PtPvdId)
 	return(0);
 }
 
-// PvdIdBeginTransaction : called internally before updating a set of attributes
-// Must be 'closed' by a call to PvdIdEndTransaction. The given pvd will be created
+// PvdBeginTransaction : called internally before updating a set of attributes
+// Must be 'closed' by a call to PvdEndTransaction. The given pvd will be created
 // if needed
-t_PvdId	*PvdIdBeginTransaction(char *pvdname)
+t_Pvd	*PvdBeginTransaction(char *pvdname)
 {
-	t_PvdId	*PtPvdId;
+	t_Pvd	*PtPvd;
 
-	if ((PtPvdId = RegisterPvdId(-1, pvdname)) != NULL) {
-		PtPvdId->dirty = false;
+	if ((PtPvd = RegisterPvd(-1, pvdname)) != NULL) {
+		PtPvd->dirty = false;
 	}
-	return(PtPvdId);
+	return(PtPvd);
 }
 
-// PvdIdSetAttr : update an attribute within a given pvd
-int	PvdIdSetAttr(t_PvdId *PtPvdId, char *Key, char *Value)
+// PvdSetAttr : update an attribute within a given pvd
+int	PvdSetAttr(t_Pvd *PtPvd, char *Key, char *Value)
 {
-	return(UpdateAttribute(PtPvdId, Key, Value));
+	return(UpdateAttribute(PtPvd, Key, Value));
 }
 
-// PvdIdEndTransaction : we must notify any changes that might have happen
+// PvdEndTransaction : we must notify any changes that might have happen
 // during the transaction
-void	PvdIdEndTransaction(t_PvdId *PtPvdId)
+void	PvdEndTransaction(t_Pvd *PtPvd)
 {
-	if (PtPvdId->dirty) {
-		NotifyPvdIdAttributes(PtPvdId);
+	if (PtPvd->dirty) {
+		NotifyPvdAttributes(PtPvd);
 	}
 }
 
@@ -1016,17 +1016,17 @@ static	int	SendOneAttribute(int s, int binary, char *pvdname, char *attrName)
 {
 	int		i;
 	char		Prefix[1024];
-	t_PvdId		*PtPvdId;
+	t_Pvd		*PtPvd;
 	t_PvdAttribute	*Attributes;
 
 	DLOG("send attribute %s for pvdid %s on socket %d\n", attrName, pvdname, s);
 
-	if ((PtPvdId = GetPvdId(pvdname)) == NULL) {
+	if ((PtPvd = GetPvd(pvdname)) == NULL) {
 		DLOG("%s : unknown PvD\n", pvdname);
 		return(0);
 	}
 
-	Attributes = PtPvdId->Attributes;
+	Attributes = PtPvd->Attributes;
 
 	sprintf(Prefix, "PVDID_ATTRIBUTE %s %s\n", pvdname, attrName);
 
@@ -1048,17 +1048,17 @@ static	int	SendAllAttributes(int s, int binary, char *pvdname)
 	int	rc;
 	char	Prefix[1024];
 	char	*JsonString;
-	t_PvdId	*PtPvdId;
+	t_Pvd	*PtPvd;
 
 	DLOG("send all attributes for pvdid %s on socket %d\n", pvdname, s);
 
 	// Recursive call in case the client wants to receive the
 	// attributes for all currently registered PvD
 	if (EQSTR(pvdname, "*")) {
-		t_PvdId	*PtPvdId;
+		t_Pvd	*PtPvd;
 
-		for (PtPvdId = lFirstPvdId; PtPvdId != NULL; PtPvdId = PtPvdId->next) {
-			if ((rc = SendAllAttributes(s, binary, PtPvdId->pvdname)) != 0) {
+		for (PtPvd = lFirstPvd; PtPvd != NULL; PtPvd = PtPvd->next) {
+			if ((rc = SendAllAttributes(s, binary, PtPvd->pvdname)) != 0) {
 				return(rc);
 			}
 		}
@@ -1066,11 +1066,11 @@ static	int	SendAllAttributes(int s, int binary, char *pvdname)
 	}
 
 	// Nominal case
-	if ((PtPvdId = GetPvdId(pvdname)) == NULL) {
+	if ((PtPvd = GetPvd(pvdname)) == NULL) {
 		return(0);
 	}
 
-	if ((JsonString = PvdIdAttributes2Json(PtPvdId)) == NULL) {
+	if ((JsonString = PvdAttributes2Json(PtPvd)) == NULL) {
 		return(0);
 	}
 
@@ -1123,7 +1123,7 @@ static	int	HandleMultiLinesMessage(int ix)
 		// Here, pt points to the 2nd line : it is the attributeValue and
 		// is part of the allocated string buffer (be careful to not free
 		// this string buffer before we have duplicated the attributeValue)
-		rc = UpdateAttribute(GetPvdId(pvdname), attributeName, pt);
+		rc = UpdateAttribute(GetPvd(pvdname), attributeName, pt);
 
 		SBUninit(SB);
 
@@ -1227,7 +1227,7 @@ static	int	DispatchMessage(char *msg, int ix)
 		}
 
 		if (sscanf(msg, "PVDID_END_TRANSACTION %[^\n]", pvdname) == 1) {
-			t_PvdId	*PtPvdId;
+			t_Pvd	*PtPvd;
 
 			if (lTabClients[ix].pvdIdTransaction == NULL) {
 				DLOG("ending transaction for %s while no transaction on-going\n",
@@ -1244,10 +1244,10 @@ static	int	DispatchMessage(char *msg, int ix)
 			free(lTabClients[ix].pvdIdTransaction);
 			lTabClients[ix].pvdIdTransaction = NULL;
 
-			if ((PtPvdId = GetPvdId(pvdname)) != NULL) {
-				if (PtPvdId->dirty) {
-					NotifyPvdIdAttributes(PtPvdId);
-					PtPvdId->dirty = false;
+			if ((PtPvd = GetPvd(pvdname)) != NULL) {
+				if (PtPvd->dirty) {
+					NotifyPvdAttributes(PtPvd);
+					PtPvd->dirty = false;
 				}
 			}
 			return(0);
@@ -1259,7 +1259,7 @@ static	int	DispatchMessage(char *msg, int ix)
 			"PVDID_UNSET_ATTRIBUTE %[^ ] %[^\n]",
 			pvdname,
 			attributeName) == 2) {
-			return(DeleteAttribute(GetPvdId(pvdname), attributeName));
+			return(DeleteAttribute(GetPvd(pvdname), attributeName));
 		}
 
 		// PVDID_SET_ATTRIBUTE message are special : either the
@@ -1291,7 +1291,7 @@ static	int	DispatchMessage(char *msg, int ix)
 				}
 				return(0);
 			}
-			return(UpdateAttribute(GetPvdId(pvdname), attributeName, attributeValue));
+			return(UpdateAttribute(GetPvd(pvdname), attributeName, attributeValue));
 		}
 
 		if (sscanf(msg, "PVDID_CREATE_PVDID %d %[^\n]", &pvdid, pvdname) == 2) {
@@ -1301,7 +1301,7 @@ static	int	DispatchMessage(char *msg, int ix)
 				}
 				return(0);
 			}
-			return(RegisterPvdId(pvdid, pvdname) != NULL);
+			return(RegisterPvd(pvdid, pvdname) != NULL);
 		}
 
 		if (sscanf(msg, "PVDID_REMOVE_PVDID %[^\n]", pvdname) == 1) {
@@ -1312,7 +1312,7 @@ static	int	DispatchMessage(char *msg, int ix)
 				}
 				return(0);
 			}
-			return(UnregisterPvdId(pvdname));
+			return(UnregisterPvd(pvdname));
 		}
 
 		// Unknown message : don't fail on error
@@ -1347,7 +1347,7 @@ static	int	DispatchMessage(char *msg, int ix)
 	}
 
 	if (EQSTR(msg, "PVDID_GET_LIST")) {
-		if (SendPvdIdList(s, binary) == -1) {
+		if (SendPvdList(s, binary) == -1) {
 			goto BadExit;
 		}
 		return(0);
@@ -1434,24 +1434,24 @@ static	int	RegisterPvdAttributes(struct net_pvd_attribute *pa)
 {
 	int i;
 	char *pt;
-	t_PvdId	*PtPvdId = RegisterPvdId(pa->index, pa->name);
+	t_Pvd	*PtPvd = RegisterPvd(pa->index, pa->name);
 
-	if (PtPvdId == NULL) {
+	if (PtPvd == NULL) {
 		// Fatal error
 		fprintf(stderr, "Can not register pvd %s\n", pa->name);
 		return(-1);
 	}
-	PvdIdBeginTransaction(pa->name);
-	PvdIdSetAttr(
-		PtPvdId,
+	PvdBeginTransaction(pa->name);
+	PvdSetAttr(
+		PtPvd,
 		"sequenceNumber",
 		GetIntStr(pa->sequence_number));
-	PvdIdSetAttr(PtPvdId, "hFlag", GetIntStr(pa->h_flag));
-	PvdIdSetAttr(PtPvdId, "lFlag", GetIntStr(pa->l_flag));
-	PvdIdSetAttr(PtPvdId, "lifetime", GetIntStr(pa->expires));
+	PvdSetAttr(PtPvd, "hFlag", GetIntStr(pa->h_flag));
+	PvdSetAttr(PtPvd, "lFlag", GetIntStr(pa->l_flag));
+	PvdSetAttr(PtPvd, "lifetime", GetIntStr(pa->expires));
 
-	PvdIdSetAttr(
-		PtPvdId,
+	PvdSetAttr(
+		PtPvd,
 		"addresses",
 		pt = In6AddrToJsonArray(
 			pa->naddresses,
@@ -1459,8 +1459,8 @@ static	int	RegisterPvdAttributes(struct net_pvd_attribute *pa)
 			pa->addr_prefix_len));
 	free(pt);
 
-	PvdIdSetAttr(
-		PtPvdId,
+	PvdSetAttr(
+		PtPvd,
 		"routes",
 		pt = In6RoutesToJsonArray(pa->nroutes, pa->routes));
 	free(pt);
@@ -1469,31 +1469,31 @@ static	int	RegisterPvdAttributes(struct net_pvd_attribute *pa)
 	 * User options now : RDNSS/DNSSL
 	 */
 	for (i = 0; i < pa->nrdnss; i++) {
-		PtPvdId->KernelRdnss[i] = pa->rdnss[i];
+		PtPvd->KernelRdnss[i] = pa->rdnss[i];
 	}
-	PtPvdId->nKernelRdnss = pa->nrdnss;
+	PtPvd->nKernelRdnss = pa->nrdnss;
 
-	for (i = 0; i < PtPvdId->nKernelDnssl; i++) {
-		free(PtPvdId->KernelDnssl[i]);
+	for (i = 0; i < PtPvd->nKernelDnssl; i++) {
+		free(PtPvd->KernelDnssl[i]);
 	}
 	for (i = 0; i < pa->ndnssl; i++) {
-		PtPvdId->KernelDnssl[i] = strdup(pa->dnssl[i]);
+		PtPvd->KernelDnssl[i] = strdup(pa->dnssl[i]);
 	}
-	PtPvdId->nKernelDnssl = pa->ndnssl;
+	PtPvd->nKernelDnssl = pa->ndnssl;
 
-	PvdIdSetAttr(
-		PtPvdId,
+	PvdSetAttr(
+		PtPvd,
 		"rdnss",
-		pt = PvdIdRdnssToJsonArray(PtPvdId));
+		pt = PvdRdnssToJsonArray(PtPvd));
 	free(pt);
 
-	PvdIdSetAttr(
-		PtPvdId,
+	PvdSetAttr(
+		PtPvd,
 		"dnssl",
-		pt = PvdIdDnsslToJsonArray(PtPvdId));
+		pt = PvdDnsslToJsonArray(PtPvd));
 	free(pt);
 
-	PvdIdEndTransaction(PtPvdId);
+	PvdEndTransaction(PtPvd);
 
 	return(0);
 }
@@ -1536,7 +1536,7 @@ static	void	HandleRtNetlink(t_rtnetlink_cnx *cnx)
 	void *vmsg;
 	int type;
 	int rc;
-	t_PvdId *PtPvdId;
+	t_Pvd *PtPvd;
 
 	if ((vmsg = rtnetlink_recv(cnx, &type)) == NULL) {
 		return;
@@ -1559,7 +1559,7 @@ static	void	HandleRtNetlink(t_rtnetlink_cnx *cnx)
 		}
 
 		if (pvdmsg->pvd_state == PVD_DEL) {
-			UnregisterPvdId(pvdmsg->pvd_name);
+			UnregisterPvd(pvdmsg->pvd_name);
 			return;
 		}
 		return;
@@ -1576,17 +1576,17 @@ static	void	HandleRtNetlink(t_rtnetlink_cnx *cnx)
 		 * RDNSS_DEL can reference a user defined RDNSS
 		 */
 		if (rdnssmsg->rdnss_state == RDNSS_DEL) {
-			if ((PtPvdId = GetPvdIdByName(rdnssmsg->pvd_name)) != NULL) {
+			if ((PtPvd = GetPvdByName(rdnssmsg->pvd_name)) != NULL) {
 				rc = DeleteRdnss(
-					&PtPvdId->nKernelRdnss,
-					PtPvdId->KernelRdnss,
+					&PtPvd->nKernelRdnss,
+					PtPvd->KernelRdnss,
 					&rdnssmsg->rdnss);
 				rc += DeleteRdnss(
-					&PtPvdId->nUserRdnss,
-					PtPvdId->UserRdnss,
+					&PtPvd->nUserRdnss,
+					PtPvd->UserRdnss,
 					&rdnssmsg->rdnss);
 				if (rc != 0) {
-					NotifyPvdIdAttributes(PtPvdId);
+					NotifyPvdAttributes(PtPvd);
 				}
 			}
 		}
@@ -1604,17 +1604,17 @@ static	void	HandleRtNetlink(t_rtnetlink_cnx *cnx)
 		 * DNSSL_DEL can reference a user defined DNSSL
 		 */
 		if (dnsslmsg->dnssl_state == DNSSL_DEL) {
-			if ((PtPvdId = GetPvdIdByName(dnsslmsg->pvd_name)) != NULL) {
+			if ((PtPvd = GetPvdByName(dnsslmsg->pvd_name)) != NULL) {
 				rc = DeleteDnssl(
-					&PtPvdId->nKernelDnssl,
-					PtPvdId->KernelDnssl,
+					&PtPvd->nKernelDnssl,
+					PtPvd->KernelDnssl,
 					dnsslmsg->dnssl);
 				rc += DeleteDnssl(
-					&PtPvdId->nUserDnssl,
-					PtPvdId->UserDnssl,
+					&PtPvd->nUserDnssl,
+					PtPvd->UserDnssl,
 					dnsslmsg->dnssl);
 				if (rc != 0) {
-					NotifyPvdIdAttributes(PtPvdId);
+					NotifyPvdAttributes(PtPvd);
 				}
 			}
 		}
@@ -1704,7 +1704,7 @@ int	main(int argc, char **argv)
 	 * + on PvD aware kernels, a new rtnetlink group should be present
 	 *   to notify
 	 *
-	 * We determine in which case we are by calling the pvd_get_list()
+	 * We determine in which case we are by calling the kernel_get_pvdlist()
 	 * function (which ends up calling a socket() specific function,
 	 * returning ENOPROTOOPT eventually). If this call is supported
 	 * by the kernel, we assume that the whole PvD functionality is
