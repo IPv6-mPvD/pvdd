@@ -91,11 +91,7 @@ struct nd_opt_route_info_local { /* route information */
 struct nd_opt_pvdid {
 	uint8_t nd_opt_pvd_type;
 	uint8_t nd_opt_pvd_len;
-	uint8_t nd_opt_pvd_seq : 4;
-	uint8_t nd_opt_pvd_h : 1;
-	uint8_t nd_opt_pvd_l : 1;
-	uint16_t nd_opt_pvd_reserved : 10;
-	uint32_t nd_opt_pvd_lifetime;
+	unsigned char nd_opt_pvd_payload[6];
 	unsigned char nd_opt_pvd_name[];
 };
 
@@ -276,8 +272,6 @@ void process_ra(unsigned char *msg,
 			break;
 		case ND_OPT_RDNSS_INFORMATION: {
 			struct nd_opt_rdnss_info_local *rdnssinfo = (struct nd_opt_rdnss_info_local *)opt_str;
-			if (len < sizeof(*rdnssinfo))
-				return;
 
 			DLOG("ND_OPT_RDNSS_INFORMATION present in RA\n");
 
@@ -304,6 +298,7 @@ void process_ra(unsigned char *msg,
 			struct nd_opt_dnssl_info_local *dnssl_info = (struct nd_opt_dnssl_info_local *)opt_str;
 			char suffix[256] = {""};
 
+			DLOG("sizeof(nd_opt_dnssl_info_local) = %d\n", (int) sizeof(*dnssl_info));
 			if (len < sizeof(*dnssl_info))
 				return;
 
@@ -341,6 +336,7 @@ void process_ra(unsigned char *msg,
 			break;
 		}
 		case ND_OPT_PVDID: {
+			uint32_t v32;
 			struct nd_opt_pvdid *pvd = (struct nd_opt_pvdid *) opt_str;
 			if (len < sizeof(*pvd))
 				return;
@@ -351,10 +347,14 @@ void process_ra(unsigned char *msg,
 				break;
 			}
 
-			pvdIdSeq = pvd->nd_opt_pvd_seq;
-			pvdIdH = pvd->nd_opt_pvd_h;
-			pvdIdL = pvd->nd_opt_pvd_l;
-			pvdIdLifetime = ntohl(pvd->nd_opt_pvd_lifetime);
+			pvdIdSeq = (pvd->nd_opt_pvd_payload[0] >> 4) & 0x0F;
+			pvdIdH = (pvd->nd_opt_pvd_payload[0] >> 3) & 0x01;
+			pvdIdL = (pvd->nd_opt_pvd_payload[0] >> 2) & 0x01;
+			memcpy(&v32, &pvd->nd_opt_pvd_payload[2], 4);
+			pvdIdLifetime = ntohl(v32);
+
+			DLOG("pvdIdSeq = %d, pvdIdH = %d, pvdIdL = %d, pvdIdLifetime = %d\n",
+				pvdIdSeq, pvdIdH, pvdIdL, pvdIdLifetime);
 
 			// We will modify in place the buffer to put '.' where
 			// needed
@@ -377,9 +377,14 @@ void process_ra(unsigned char *msg,
 
 			strcpy(pvdname, (char *) &pvd->nd_opt_pvd_name[1]);
 
+			DLOG("Pvdname : %s\n", pvdname);
+
+
 			break;
 		}
 		default:
+			DLOG("unknown option %d in RA from %s\n", (int)*opt_str, addr_str);
+
 			_DLOG(LOG_DEBUG, "unknown option %d in RA from %s\n", (int)*opt_str, addr_str);
 			break;
 		}
@@ -387,6 +392,8 @@ void process_ra(unsigned char *msg,
 		len -= optlen;
 		opt_str += optlen;
 	}
+	DLOG("processed RA\n");
+
 	_DLOG(LOG_DEBUG, "processed RA\n");
 
 	// If we have seen a Pvd, we will update some fields of interest
@@ -396,6 +403,8 @@ void process_ra(unsigned char *msg,
 		// No PvD option defined in this RA
 		goto Exit;
 	}
+
+	DLOG("PVD option being handled at the end of the RA\n");
 
 	if (radvert->nd_ra_router_lifetime == 0) {
 		DLOG("RA becoming invalidated. Unregistering\n");
