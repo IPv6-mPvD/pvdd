@@ -20,7 +20,7 @@
  * via HTTPS
  * It handles either the 'expire' header for the message or the
  * expireDate field in the JSON object. This triggers a new request
- * to be sent to the https://<pvdid>/pvd.json URI
+ * to be sent to the https://<pvdid>/.well-known/pvd URI
  *
  * Changes are notified to the main daemon
  *
@@ -277,7 +277,7 @@ function RetrievePvdExtraInfo(pvdname) {
 		var protocol = http;
 	}
 	else {
-		var Url = "https://" + pvdname + "/pvd.json";
+		var Url = "https://" + pvdname + "/.well-known/pvd";
 		var protocol = https;
 	}
 
