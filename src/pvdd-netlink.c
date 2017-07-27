@@ -91,7 +91,8 @@ struct nd_opt_route_info_local { /* route information */
 struct nd_opt_pvdid {
 	uint8_t nd_opt_pvd_type;
 	uint8_t nd_opt_pvd_len;
-	unsigned char nd_opt_pvd_payload[6];
+	uint16_t nd_opt_pvd_flags;
+	uint16_t nd_opt_pvd_sequence;
 	unsigned char nd_opt_pvd_name[];
 };
 
@@ -332,11 +333,13 @@ void process_ra(unsigned char *msg,
 				offset += label_len;
 			}
 
-			DLOG("ND_OPT_DNSSL_INFORMATION : %d DNSSL items (max %d)\n", nDNSSL, (int) DIM(TabDNSSL));
+			DLOG("ND_OPT_DNSSL_INFORMATION : %d DNSSL items (max %d)\n",
+				nDNSSL,
+				(int) DIM(TabDNSSL));
 			break;
 		}
 		case ND_OPT_PVDID: {
-			uint32_t v32;
+			int pvdNameLen;
 			struct nd_opt_pvdid *pvd = (struct nd_opt_pvdid *) opt_str;
 			if (len < sizeof(*pvd))
 				return;
@@ -347,38 +350,22 @@ void process_ra(unsigned char *msg,
 				break;
 			}
 
-			pvdIdSeq = (pvd->nd_opt_pvd_payload[0] >> 4) & 0x0F;
-			pvdIdH = (pvd->nd_opt_pvd_payload[0] >> 3) & 0x01;
-			pvdIdL = (pvd->nd_opt_pvd_payload[0] >> 2) & 0x01;
-			memcpy(&v32, &pvd->nd_opt_pvd_payload[2], 4);
-			pvdIdLifetime = ntohl(v32);
+			pvdIdSeq = ntohs(pvd->nd_opt_pvd_sequence);
+			pvdIdH = (ntohs(pvd->nd_opt_pvd_flags) >> 15) & 0x01;
+			pvdIdL = (ntohs(pvd->nd_opt_pvd_flags) >> 14) & 0x01;
 
-			DLOG("pvdIdSeq = %d, pvdIdH = %d, pvdIdL = %d, pvdIdLifetime = %d\n",
-				pvdIdSeq, pvdIdH, pvdIdL, pvdIdLifetime);
+			DLOG("pvdIdSeq = %d, pvdIdH = %d, pvdIdL = %d\n",
+				pvdIdSeq, pvdIdH, pvdIdL);
 
-			// We will modify in place the buffer to put '.' where
-			// needed
-			unsigned char *pt = pvd->nd_opt_pvd_name;
-			int labelLen = *pt++;
+			pvdNameLen = optlen - sizeof(*pvd);
 
-			if (labelLen == 0) {
-				// Ignore empty name
-				break;
+			if (pvdNameLen >= PVDNAMSIZ) {
+				pvdNameLen = PVDNAMSIZ - 1;
 			}
-			while (labelLen != 0) {
-				int n;
-				if ((n = pt[labelLen]) != 0) {
-					pt[labelLen] = '.';
-					pt += labelLen + 1;
-				}
-				labelLen = n;
-			}
-			// Hopefully ends with a '\0'
-
-			strcpy(pvdname, (char *) &pvd->nd_opt_pvd_name[1]);
+			strncpy(pvdname, (char *) pvd->nd_opt_pvd_name, pvdNameLen);
+			pvdname[pvdNameLen] = '\0';
 
 			DLOG("Pvdname : %s\n", pvdname);
-
 
 			break;
 		}
