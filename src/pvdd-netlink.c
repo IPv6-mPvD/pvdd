@@ -178,7 +178,6 @@ void process_ra(unsigned char *msg,
 	int pvdIdSeq = -1;
 	int pvdIdH = 0;
 	int pvdIdL = 0;
-	uint32_t pvdIdLifetime = 0;
 	t_Pvd *PtPvd;
 	char *TabDNSSL[16];	// More than sufficient ?
 	int nDNSSL = 0;
@@ -406,7 +405,6 @@ void process_ra(unsigned char *msg,
 	PvdSetAttr(PtPvd, "sequenceNumber", GetIntStr(pvdIdSeq));
 	PvdSetAttr(PtPvd, "hFlag", GetIntStr(pvdIdH));
 	PvdSetAttr(PtPvd, "lFlag", GetIntStr(pvdIdL));
-	PvdSetAttr(PtPvd, "lifetime", GetIntStr(pvdIdLifetime));
 	PvdSetAttr(PtPvd, "interface", Stringify(JsonString(if_name)));
 	PvdSetAttr(PtPvd, "srcAddress", Stringify(addr_str));
 

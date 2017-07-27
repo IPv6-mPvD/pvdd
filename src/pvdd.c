@@ -671,7 +671,6 @@ static	t_Pvd	*RegisterPvd(int pvdid, char *pvdname)
 	PvdSetAttr(PtPvd, "sequenceNumber", "0");
 	PvdSetAttr(PtPvd, "hFlag", "0");	// by default
 	PvdSetAttr(PtPvd, "lFlag", "0");
-	PvdSetAttr(PtPvd, "lifetime", GetIntStr(0xffffffff));
 
 	// Link it at the head of the list
 	PtPvd->next = lFirstPvd;
@@ -1281,8 +1280,7 @@ static	int	DispatchMessage(char *msg, int ix)
 			if (lKernelHasPvdSupport &&
 			    (EQSTR(attributeName, "hFlag") ||
 			     EQSTR(attributeName, "lFlag") ||
-			     EQSTR(attributeName, "sequenceNumber") ||
-			     EQSTR(attributeName, "lifetime"))) {
+			     EQSTR(attributeName, "sequenceNumber"))) {
 				if (kernel_update_pvd_attr(
 						pvdname,
 						attributeName,
