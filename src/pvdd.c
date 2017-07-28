@@ -753,6 +753,11 @@ static	int	DeleteAttribute(t_Pvd *PtPvd, char *Key)
 
 // UpdateAttribute : update (ie, replace)/create a given attribute for
 // a given pvd
+// Special case is done for some unsettable attributes
+static	char	*lUnsettableAttributes[] = {
+	".deprecated",
+};
+
 static	int	UpdateAttribute(t_Pvd *PtPvd, char *Key, char *Value)
 {
 	int	i;
@@ -767,6 +772,13 @@ static	int	UpdateAttribute(t_Pvd *PtPvd, char *Key, char *Value)
 
 	DLOG("UpdateAttribute : pvdname = %s, Key = %s, Value = %s\n",
 		PtPvd->pvdname, Key, Value);
+
+	for (i = 0; i < DIM(lUnsettableAttributes); i++) {
+		if (EQSTR(lUnsettableAttributes[i], Key)) {
+			DLOG("Setting attribute %s : skipped\n", Key);
+			return(0);
+		}
+	}
 
 	for (i = 0; i < MAXATTRIBUTES; i++) {
 		char	*attrKey = PtPvd->Attributes[i].Key;
@@ -1305,7 +1317,7 @@ static	int	DispatchMessage(char *msg, int ix)
 		if (sscanf(msg, "PVD_REMOVE_PVD %[^\n]", pvdname) == 1) {
 			if (lKernelHasPvdSupport) {
 				if (kernel_update_pvd_attr(
-						pvdname, "lifetime", "0") == -1) {
+						pvdname, ".deprecated", "1") == -1) {
 					perror("kernel_update_pvd_attr");
 				}
 				return(0);
@@ -1446,7 +1458,6 @@ static	int	RegisterPvdAttributes(struct net_pvd_attribute *pa)
 		GetIntStr(pa->sequence_number));
 	PvdSetAttr(PtPvd, "hFlag", GetIntStr(pa->h_flag));
 	PvdSetAttr(PtPvd, "lFlag", GetIntStr(pa->l_flag));
-	PvdSetAttr(PtPvd, "lifetime", GetIntStr(pa->expires));
 
 	PvdSetAttr(
 		PtPvd,

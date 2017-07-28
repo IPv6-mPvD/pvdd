@@ -146,13 +146,13 @@ struct create_pvd {
 	int sequence_number;
 	int h_flag;
 	int l_flag;
-	unsigned long lifetime;
+	int deprecated;
 };
 
 #define	PVD_ATTR_SEQNUMBER	0x01
 #define	PVD_ATTR_HFLAG		0x02
 #define	PVD_ATTR_LFLAG		0x04
-#define	PVD_ATTR_LIFETIME	0x08
+#define	PVD_ATTR_DEPRECATED	0x08
 
 /*
  * For SO_RT6PVD

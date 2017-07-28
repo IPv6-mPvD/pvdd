@@ -972,9 +972,9 @@ int	kernel_update_pvd_attr(char *pvdname, char *attrName, char *attrValue)
 		cpvd.flag = PVD_ATTR_SEQNUMBER;
 		cpvd.sequence_number = value % 15;
 	} else
-	if (EQSTR(attrName, "lifetime")) {
-		cpvd.flag = PVD_ATTR_LIFETIME;
-		cpvd.lifetime = value;
+	if (EQSTR(attrName, ".deprecated")) {
+		cpvd.flag = PVD_ATTR_DEPRECATED;
+		cpvd.deprecated = value;
 	}
 	else {
 		errno = -EINVAL;

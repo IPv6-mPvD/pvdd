@@ -48,7 +48,7 @@ update the internal database.
 
 For now, the fields of interest are :
 
-* the PvD name itself (FQDN) and its characteristics (sequence number, H and L flags, lifetime)
+* the PvD name itself (FQDN) and its characteristics (sequence number, H and L flags)
 * the dnssl field (list of search domains)
 * the rdnss field (list of recursive domain servers)
 
@@ -68,12 +68,12 @@ has been extended to report creation/update/deprecation of PvD.
 The daemon in this case has access to a set of additional kernel API :
 
 * to retrieve the attributes of a PvD :
-	* PvD name, sequence number, H, L flags, lifetime
+	* PvD name, sequence number, H, L flags
 	* associated IPv6 addresses
 	* associated IPv6 routes
 	* rdnss and dnssl
 * to create a new PvD
-* to delete a PvD (by setting its lifetime to 0)
+* to delete a PvD (by setting a private hidden attribute (.deprecated) to 1)
 * to modify any of its attributes
 * to update the list of dnssl and rdnss (not yet implemented)
 
