@@ -1453,6 +1453,7 @@ static	int	RegisterPvdAttributes(struct net_pvd_attribute *pa)
 		GetIntStr(pa->sequence_number));
 	PvdSetAttr(PtPvd, "hFlag", GetIntStr(pa->h_flag));
 	PvdSetAttr(PtPvd, "lFlag", GetIntStr(pa->l_flag));
+	PvdSetAttr(PtPvd, "implicit", pa->implicit_flag ? "true" : "false");
 	PvdSetAttr(
 		PtPvd,
 		"lla",
