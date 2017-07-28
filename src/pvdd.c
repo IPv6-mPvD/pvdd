@@ -1456,8 +1456,8 @@ static	int	RegisterPvdAttributes(struct net_pvd_attribute *pa)
 	PvdSetAttr(
 		PtPvd,
 		"lla",
-		JsonString(addrtostr(&pa->lla, sAddr, sizeof(sAddr))));
-	PvdSetAttr(PtPvd, "dev", pa->dev);
+		Stringify(addrtostr(&pa->lla, sAddr, sizeof(sAddr))));
+	PvdSetAttr(PtPvd, "dev", Stringify(JsonString(pa->dev)));
 
 	PvdSetAttr(
 		PtPvd,
