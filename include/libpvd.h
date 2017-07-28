@@ -164,13 +164,6 @@ extern	int	kernel_get_pvd_attributes(char *pvdname, struct net_pvd_attribute *at
 extern	int	kernel_create_pvd(char *pvdname);
 extern	int	kernel_update_pvd_attr(char *pvdname, char *attrName, char *attrValue);
 
-	/*
-	 * Cached RAs (API might be obsolated quickly, so don't rely on it)
-	 */
-extern	struct ra_list	*ralist_alloc(int max_ras);
-extern	void	ralist_release(struct ra_list *ral);
-extern	int	kernel_get_ralist(struct ra_list *ral);
-
 #endif		/* LIBPVD_H */
 
 /* ex: set ts=8 noexpandtab wrap: */

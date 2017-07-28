@@ -70,8 +70,9 @@ struct net_pvd_attribute {
 	int			sequence_number;
 	int			h_flag;
 	int			l_flag;
-
-	unsigned long		expires;	/* lifetime field */
+	int			implicit_flag;
+	struct in6_addr		lla;
+	char			dev[IFNAMSIZ];
 
 	/*
 	 * Induced attributes
@@ -97,29 +98,6 @@ struct pvd_list {
 struct pvd_attr {
 	char *pvdname;	/* in */
 	struct net_pvd_attribute *pvdattr;	/* out */
-};
-
-/*
- * For SO_GETRALIST
- */
-#define	_RALIST_HEADER \
-	int	size;		/* total structure size */\
-	int	buffer_size;	/* depends on max_ras */\
-	char	*buffer;	/* allocated */\
-	int	nra;		/* output */\
-	int	max_ras;
-
-struct ra_buffer {
-	int		ra_size;
-	unsigned char	*ra;
-	int		ifindex;
-	struct in6_addr	saddr;
-};
-
-struct ra_list {
-	_RALIST_HEADER
-	struct ra_buffer array[0];	/* variable size : [max_ras] */
-	/* array will be followed by a buffer */
 };
 
 /*

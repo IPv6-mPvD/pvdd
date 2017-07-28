@@ -168,7 +168,6 @@ static	int	usage(char *s)
 	fprintf(fo, "%s [-h|--help] <option>*\n", lMyName);
 	fprintf(fo, "where option :\n");
 	fprintf(fo, "\t-v|--verbose\n");
-	fprintf(fo, "\t-r|--use-cached-ra : retrieve the initial PvD list via a kernel cache\n");
 	fprintf(fo,
 		"\t-p|--port <#> : port number for clients requests (default %d)\n",
 		DEFAULT_PVDD_PORT);
@@ -176,28 +175,23 @@ static	int	usage(char *s)
 		"\t-d|--dir <path> : directory in which information is stored (none by default)\n");
 	fprintf(fo,
 		"\n"
-		"Clients using the companion library can set the PVDD_PORT environment\n"
-		"variable to specify another port than the default one\n");
-	fprintf(fo,
-		"\n"
-		"Note that the kernel mechanism which caches the latest received RAs is not an\n"
-		"accurate way of having an exact picture of the current addresses/routes/user\n"
-		"options\n");
-
+		"Clients using the companion library can set the PVDD_PORT environment\n");
 
 	return(s == NULL ? 0 : 1);
 }
 
-// PvdRdnssToJsonArray : aggregate the kernel and user RDNSS fields
-// and buid a JSON string for this array of in6_addr values
-// The returned string must be released by calling free()
+/*
+ * PvdRdnssToJsonArray : aggregate the kernel and user RDNSS fields
+ * and buid a JSON string for this array of in6_addr values
+ * The returned string must be released by calling free()
+ */
 char	*PvdRdnssToJsonArray(t_Pvd *PtPvd)
 {
 	int 		nAddr;
 	struct in6_addr Addresses[MAXRDNSSPERPVD * 2];
 	int		i, j;
 	t_StringBuffer	SB;
-	char		sAddr[INET6_ADDRSTRLEN];
+	char		sAddr[INET6_ADDRSTRLEN + 1];
 
 	nAddr = 0;
 	for (i = 0; i < PtPvd->nKernelRdnss; i++) {
@@ -284,7 +278,7 @@ char	*In6AddrToJsonArray(int nAddr, struct in6_addr *Addresses, int *PrefixesLen
 {
 	int		i;
 	t_StringBuffer	SB;
-	char		sAddr[INET6_ADDRSTRLEN];
+	char		sAddr[INET6_ADDRSTRLEN + 1];
 
 	SBInit(&SB);
 
@@ -309,7 +303,7 @@ char	*In6RoutesToJsonArray(int nRoutes, struct net_pvd_route *Routes)
 {
 	int		i;
 	t_StringBuffer	SB;
-	char		sAddr[INET6_ADDRSTRLEN];
+	char		sAddr[INET6_ADDRSTRLEN + 1];
 
 	SBInit(&SB);
 
@@ -1442,8 +1436,9 @@ static	int	HandleMessage(int ix)
 
 static	int	RegisterPvdAttributes(struct net_pvd_attribute *pa)
 {
-	int i;
-	char *pt;
+	int	i;
+	char	*pt;
+	char	sAddr[INET6_ADDRSTRLEN + 1];
 	t_Pvd	*PtPvd = RegisterPvd(pa->index, pa->name);
 
 	if (PtPvd == NULL) {
@@ -1458,6 +1453,11 @@ static	int	RegisterPvdAttributes(struct net_pvd_attribute *pa)
 		GetIntStr(pa->sequence_number));
 	PvdSetAttr(PtPvd, "hFlag", GetIntStr(pa->h_flag));
 	PvdSetAttr(PtPvd, "lFlag", GetIntStr(pa->l_flag));
+	PvdSetAttr(
+		PtPvd,
+		"lla",
+		JsonString(addrtostr(&pa->lla, sAddr, sizeof(sAddr))));
+	PvdSetAttr(PtPvd, "dev", pa->dev);
 
 	PvdSetAttr(
 		PtPvd,
@@ -1639,8 +1639,6 @@ int	main(int argc, char **argv)
 	int		sockIcmpv6 = -1;
 	int		serverSock;
 	struct pvd_list	pvl;	/* careful : this can be quite big */
-	struct ra_list	*ral;
-	int		FlagUseCachedRa = false;
 	t_rtnetlink_cnx	*RtnlCnx = NULL;
 	int		sockRtnlink = -1;
 
@@ -1655,11 +1653,6 @@ int	main(int argc, char **argv)
 			lFlagVerbose = true;
 			continue;
 		}
-		if (EQSTR(argv[i], "-r") || EQSTR(argv[i], "--use-cached-ra")) {
-			FlagUseCachedRa = true;
-			continue;
-		}
-
 		if (EQSTR(argv[i], "-p") || EQSTR(argv[i], "--port")) {
 			if (++i < argc) {
 				if (getint(argv[i], &Port) == -1) {
@@ -1721,16 +1714,6 @@ int	main(int argc, char **argv)
 	 *
 	 * Ultimately, support for the 1st case will be dropped
 	 */
-	/*
-	 * On startup, we must query the kernel for its current
-	 * RA tables (at least, for the current pvd list).
-	 * An error can occur if the kernel is not recognizing
-	 * the command (ENOPROTOOPT)
-	 */
-	if (FlagUseCachedRa) {
-		goto get_cached_ra;
-	}
-
 	pvl.npvd = MAXPVD;
 	if (kernel_get_pvdlist(&pvl) != -1) {
 		struct net_pvd_attribute attr;
@@ -1757,30 +1740,7 @@ int	main(int argc, char **argv)
 			}
 		}
 	}
-	goto skip_cached_ra;
 
-get_cached_ra :
-	lKernelHasPvdSupport = true;	/* user's responsibility */
-
-	if ((ral = ralist_alloc(16)) != NULL) {
-		if (kernel_get_ralist(ral) != -1) {
-			for (i = 0; i < ral->nra; i++) {
-				char if_namebuf[IF_NAMESIZE] = {""};
-				process_ra(
-					ral->array[i].ra, 
-					ral->array[i].ra_size,
-					NULL,
-					&ral->array[i].saddr,
-					if_indextoname(ral->array[i].ifindex, if_namebuf));
-			}
-		}
-		else {
-			perror("kernel_get_ralist");
-		}
-		ralist_release(ral);
-	}
-
-skip_cached_ra :
 	if (lFlagVerbose) {
 		fprintf(stderr,
 			"+++ Kernel %s PvD support\n",
@@ -1794,8 +1754,6 @@ skip_cached_ra :
 	 */
 	if (! lKernelHasPvdSupport && (sockIcmpv6 = open_icmpv6_socket()) == -1) {
 		DLOG("can't create ICMPV6 netlink socket\n");
-		// Don't fail for now
-		// return(1);
 	}
 
 	if (lKernelHasPvdSupport) {
