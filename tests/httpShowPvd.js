@@ -8,22 +8,21 @@ var http = require("http");
 var pvdd = require("pvdd");
 
 var cnx = pvdd.connect({ "autoReconnect" : true });
+var allPvd = {};
 
 cnx.on("connect", function() {
-	allPvd = {};
 	cnx.getList();
 	cnx.subscribeAttribute("*");
 	cnx.subscribeNotifications();
 });
 
-cnx.on("error", function(err) {
-	allPvd = {};
-});
+cnx.on("error", function(err) {});
 
 cnx.on("pvdList", function(pvdList) {
 	pvdList.forEach(function(pvd) {
 		cnx.getAttributes(pvd);
 	});
+	allPvd = {};
 });
 
 cnx.on("pvdAttributes", function(pvd, attrs) {
@@ -31,10 +30,15 @@ cnx.on("pvdAttributes", function(pvd, attrs) {
 });
 
 var server = http.createServer(function(req, res) {
+	var host = "http://" + req.headers.host;
 	res.writeHead(200);
 	var pvd = req.url.slice(1);
 	if (pvd == null || pvd == "") {
-		res.end(Object.keys(allPvd) + "\n");
+		var s = "";
+		Object.keys(allPvd).forEach(function(pvd) {
+			s += "<a href=" + host + "/" + pvd + ">" + pvd + "</a><br>";
+		});
+		res.end(s + "\n");
 	} else
 	if (allPvd[pvd] == null) {
 		res.end("No such pvd\n");
