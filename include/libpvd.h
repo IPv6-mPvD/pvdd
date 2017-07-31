@@ -30,12 +30,8 @@
 #define	SO_GETPVDATTRIBUTES	57
 #endif
 
-#ifndef	SO_GETRALIST
-#define	SO_GETRALIST	58
-#endif
-
 #ifndef	SO_CREATEPVD
-#define	SO_CREATEPVD	59
+#define	SO_CREATEPVD	58
 #endif
 
 /*
