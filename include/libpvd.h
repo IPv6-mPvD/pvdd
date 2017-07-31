@@ -16,6 +16,7 @@
 #ifndef	LIBPVD_H
 #define	LIBPVD_H
 
+#include <sys/socket.h>
 #include <linux/pvd-user.h>
 
 #ifndef	SO_BINDTOPVD
