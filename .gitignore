@@ -12,3 +12,4 @@ pvd-bound-socks
 pvd-bound-socks.o
 pvdd-*.tgz
 npm-debug.log
+__pycache__
