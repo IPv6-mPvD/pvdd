@@ -70,7 +70,8 @@ class eventEmitter:
     def notifyListeners(self, signal, *args):
         if signal in self.listeners:
             for closure in self.listeners[signal]:
-                closure(*args)
+                if closure(*args):
+                    return True
 
 class pvdd(threading.Thread):
     """Provides an object connected to the pvdd
@@ -103,7 +104,7 @@ pvddCnx.connect(autoReconnect = True)
         self.m = threading.Lock()
 
     def emit(self, signal, *args):
-        self.emitter.notifyListeners(signal, self, *args)
+        return self.emitter.notifyListeners(signal, self, *args)
 
     def handleMultiLine(self, msg):
         r = re.split("PVD_ATTRIBUTES +([^ \n]+)\n([\s\S]+)", msg)
@@ -348,7 +349,7 @@ if __name__ == "__main__":
     pvddCnx.on("onname", handlePvdName)
     pvddCnx.on("onhFlag", handlePvdHFlag)
 
-    pvddCnx.connect(autoReconnect = True)
+    pvddCnx.connect(autoReconnect = True, verbose = False)
 
     from time import sleep
     sleep(5)
