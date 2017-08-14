@@ -22,6 +22,12 @@ import socket
 import re
 import json
 
+def noerr(closure, *args):
+    try:
+        return closure(*args)
+    except Exception:
+        return None
+
 def getenv(v):
     if v in os.environ:
         return os.environ[v]
@@ -34,13 +40,8 @@ def setval(*arg):
             return v
     return None
 
-def getJson(s):
-    try:
-        return json.loads(s)
-    except Exception:
-        return None
-
 class eventEmitter:
+    """Implements a basic event emitter """
     def __init__(self):
         self.listeners = {}
 
@@ -72,6 +73,26 @@ class eventEmitter:
                 closure(*args)
 
 class pvdd(threading.Thread):
+    """Provides an object connected to the pvdd
+
+Messages are received from the pvdd via a socket
+An internal thread is started to read these messages
+to parse them and to emit specific events
+
+Typycal use :
+def handleConnect(pvddCnx)
+    print("Connected")
+    pvddCnx.getList()
+
+pvddCnx = pvdd.pvdd()
+pvddCnx.on("connect", handleConnect)
+pvddCnx.on("error", handleError)
+pvddCnx.on("pvdList", handlePvdList)
+...
+pvddCnx.connect(autoReconnect = True)
+
+    """
+
     def __init__(self):
         threading.Thread.__init__(self)
         self.multiLines = False
@@ -81,13 +102,13 @@ class pvdd(threading.Thread):
         self.emitter = eventEmitter()
         self.m = threading.Lock()
 
-    def emit(self, signal, *args) :
+    def emit(self, signal, *args):
         self.emitter.notifyListeners(signal, self, *args)
 
     def handleMultiLine(self, msg):
         r = re.split("PVD_ATTRIBUTES +([^ \n]+)\n([\s\S]+)", msg)
         if len(r) == 4:
-            attr = getJson(r[2])
+            attr = noerr(json.loads, r[2])
             if attr != None:
                 pvdd.emit(self, "pvdAttributes", r[1], attr)
                 if self.verbose:
@@ -96,7 +117,7 @@ class pvdd(threading.Thread):
 
         r = re.split("PVD_ATTRIBUTE +([^ ]+) +([^ \n]+)\n([\s\S]+)", msg)
         if len(r) == 5:
-            attr = getJson(r[3])
+            attr = noerr(json.loads, r[3])
             if attr != None:
                 pvdd.emit(self, "pvdAttribute", r[1], r[2], attr)
                 pvdd.emit(self, "on" + r[2], r[1], attr)
@@ -150,7 +171,7 @@ class pvdd(threading.Thread):
 
         r = re.split("PVD_ATTRIBUTES +([^ ]+) +(.+)", msg)
         if len(r) == 4:
-            attr = getJson(r[2])
+            attr = noerr(json.loads, r[2])
             if attr != None:
                 pvdd.emit(self, "pvdAttributes", r[1], attr)
                 if self.verbose:
@@ -159,7 +180,7 @@ class pvdd(threading.Thread):
 
         r = re.split("PVD_ATTRIBUTE +([^ ]+) +([^ ]+) +(.+)", msg)
         if len(r) == 5:
-            attr = getJson(r[3])
+            attr = noerr(json.loads, r[3])
             if attr != None:
                 pvdd.emit(self, "pvdAttribute", r[1], r[2], attr)
                 pvdd.emit(self, "on" + r[2], r[1], attr)
@@ -236,20 +257,18 @@ class pvdd(threading.Thread):
             try:
                 self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self.sock.connect(("localhost", self.port))
-            except Exception as e:
-                pvdd.sockclose(self)
-                pvdd.emit(self, "error", e)
-                
-            finally:
                 self.start()    # background run() execution
                 if self.controlConnection:
                     pvdd.sockwrite(self, "PVD_CONNECTION_PROMOTE_CONTROL\n")
                 pvdd.emit(self, "connect")
                 if self.verbose:
                     print("Connected with pvdd")
+            except Exception as e:
+                pvdd.sockclose(self)
+                pvdd.emit(self, "error", e)
 
         if self.sock == None and self.autoReconnect:
-            self.timer = threading.Timer(1.0, pvdd.internalConnection, self)
+            self.timer = threading.Timer(1.0, pvdd.internalConnection, (self,))
             self.timer.start()
 
     def connect(
@@ -260,7 +279,7 @@ class pvdd(threading.Thread):
             verbose = False):
 
         if self.sock == None:
-            self.port = setval(port, getenv("PVDD_PORT"), 10101)
+            self.port = int(setval(port, getenv("PVDD_PORT"), 10101))
             self.autoReconnect = autoReconnect
             self.controlConnection = controlConnection
             self.verbose = verbose
@@ -271,8 +290,8 @@ class pvdd(threading.Thread):
         if doLock:
             self.m.acquire()
         if self.sock != None:
-            self.sock.shutdown(socket.SHUT_RDWR)    # force an error in run()
-            self.sock.close()
+            noerr(self.sock.shutdown, socket.SHUT_RDWR)    # force an error in run()
+            noerr(self.sock.close)
             self.sock = None
         if doLock:
             self.m.release()
@@ -282,7 +301,6 @@ class pvdd(threading.Thread):
         if self.timer != None:
             self.timer.cancel()
             self.timer = None
-
 
 if __name__ == "__main__":
     def handleConnected(pvdd):
@@ -333,6 +351,6 @@ if __name__ == "__main__":
     pvddCnx.connect(autoReconnect = True)
 
     from time import sleep
-    sleep(1)
+    sleep(5)
 
     pvddCnx.disconnect()
