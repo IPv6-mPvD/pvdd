@@ -25,7 +25,7 @@ import json
 def noerr(closure, *args):
     try:
         return closure(*args)
-    except Exception:
+    except Exception as e:
         return None
 
 def getenv(v):
@@ -100,8 +100,17 @@ pvddCnx.connect(autoReconnect = True)
         self.fullMsg = None
         self.sock = None
         self.timer = None
+        self.active = True
         self.emitter = eventEmitter()
         self.m = threading.Lock()
+        self.c = threading.Condition()
+        self.start()
+
+    def leave(self):
+        with self.c:
+            self.active = False
+            self.disconnect()
+            self.c.notify()
 
     def emit(self, signal, *args):
         return self.emitter.notifyListeners(signal, self, *args)
@@ -196,20 +205,29 @@ pvddCnx.connect(autoReconnect = True)
         self.emitter.delListener(signal, closure)
 
     def run(self):
-        # Loop reading messages until the connection is closed
-        while self.sock != None:
-                data = self.sock.recv(4096)
-                if data == b'':
-                    self.emit("error", "connection broken")
-                    if self.verbose:
-                        print("Disconnected from pvdd")
-                    self.sockclose()
-                else:
-                    data = data.decode('utf8', errors='strict')
-                    for line in data.split("\n"):
-                        if line != '':
-                            self.emit("data", line)
-                            self.handleOneLine(line)
+        while True:
+            with self.c:
+                if self.active and self.sock == None:
+                    self.c.wait()
+
+                if not self.active:
+                    return
+
+            # Loop reading messages until the connection is closed
+            while True:
+                    data = noerr(self.sock.recv, 4096)
+                    if data == b'' or data == None:
+                        self.emit("error", "connection broken")
+                        if self.verbose:
+                            print("Disconnected from pvdd")
+                        self.sockclose()
+                        break
+                    else:
+                        data = data.decode('utf8', errors='strict')
+                        for line in data.split("\n"):
+                            if line != '':
+                                self.emit("data", line)
+                                self.handleOneLine(line)
 
     def sockwrite(self, msg):
         self.m.acquire()
@@ -254,23 +272,28 @@ pvddCnx.connect(autoReconnect = True)
     # internalConnection performs the connection with the pvdd daemon
     # It also attempt to reconnect every second in autoReconnect mode
     def internalConnection(self):
-        if self.sock == None:
-            try:
-                self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                self.sock.connect(("localhost", self.port))
-                self.start()    # background run() execution
-                if self.controlConnection:
-                    self.sockwrite("PVD_CONNECTION_PROMOTE_CONTROL\n")
-                self.emit("connect")
-                if self.verbose:
-                    print("Connected with pvdd")
-            except Exception as e:
-                self.sockclose()
-                self.emit("error", e)
+        with self.c:
+            if self.sock == None:
+                try:
+                    self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    self.sock.connect(("localhost", self.port))
+                    if self.controlConnection:
+                        self.sockwrite("PVD_CONNECTION_PROMOTE_CONTROL\n")
+                    self.emit("connect")
+                    if self.verbose:
+                        print("Connected with pvdd")
+                except Exception as e:
+                    self.sockclose()
+                    self.emit("error", e)
+                    if self.verbose:
+                        print("Connection error : ", e)
 
-        if self.sock == None and self.autoReconnect:
-            self.timer = threading.Timer(1.0, self.internalConnection)
-            self.timer.start()
+                if self.sock != None:
+                    self.c.notify()
+
+            if self.sock == None and self.autoReconnect:
+                self.timer = threading.Timer(1.0, self.internalConnection)
+                self.timer.start()
 
     def connect(
             self,
@@ -355,3 +378,5 @@ if __name__ == "__main__":
     sleep(5)
 
     pvddCnx.disconnect()
+
+    pvddCnx.leave()
