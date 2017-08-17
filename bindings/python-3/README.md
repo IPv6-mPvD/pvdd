@@ -94,6 +94,16 @@ It is possible to detach a previously attached closure from a signal :
 pvdd.off(signalName, callback)
 ~~~~
 
+A last word : the closures are called from a separate thread. This means that
+care must be taken when writing these closures if they interact (to store data
+for use by other methods/functions for example) with other threads, such as the
+main thread.
+
+Additionaly, one should make sure that these closures will not block forever,
+otherwise potential new notifications (on the same connection object) will
+not be delivered. Notifications attached to other pvdd connections will still
+be served though (there is one notification thread per connection object).
+
 
 ### Subscriptions
 
