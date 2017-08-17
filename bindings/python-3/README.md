@@ -318,9 +318,28 @@ The __pvdd__ parameter is the original object we attached the callback on.
 The __attrValue__ parameter is a JSON object (or, more correctly, is a python object
 resulting of the parsing of a JSON string).
 
-### "on"<name> signal
+### "on"\<attrName\> signal
 
-On-the-fly signals can be triggered.
+On-the-fly signals can be triggered. They correspond to a specific attribute
+being received following a request or an asynchronous modification.
+
+It always comes in addition to a __"pvdAttribute'__ signal carrying the same
+attribute name.
+
+~~~~
+def handleHFlag(pvdd, pvd, hFlag):
+	print("hFlag for", pvd, ":", hFlag)
+
+def handleExtraInfo(pvdd, pvd, extraInfo):
+	print("Extra info for", pvd, ":", extraInfo)
+
+pvdd.on("onhFlag", handleHFlag)
+pvdd.on("onextraInfo", handleExtraInfo)
+~~~~
+
+The __pvdd__ parameter is the original object we attached the callback on.
+
+This particular form of signal name requires to know the list of attributes.
 
 
 ## pvddsync.py
