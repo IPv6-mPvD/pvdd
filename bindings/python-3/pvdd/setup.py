@@ -9,5 +9,5 @@ setup(
     packages=['.'],
     url='https://github.com/IPv6/mPvD/pvdd.git',
     description='pvdd client bindings for Python3',
-    long_description=open('README').read()
+    long_description='Visit the project github page'
 )
