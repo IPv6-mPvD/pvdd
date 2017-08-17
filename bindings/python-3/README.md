@@ -57,15 +57,21 @@ Calling __leave()__ disconnects the socket with the _pvdd_ daemon.
 
 ### Notifications
 
-The application attaches callbacks to signals using the generic __on__ method :
+The application attaches callbacks to signals using the generic __on__ method, and
+detaches them using the generic __off__ method :
 
 ~~~~
 pvdd.on(signalName, callback)
 ~~~~
 
-__signalName__ is a string. __callback__ is a closure.
+__signalName__ is a string. __callback__ is a closure (aka a function/method name).
 
-The signature of the callback depends on the signal.
+Attempting to attach the same closure to the same signal multiple times
+only attaches it once (ie, the closure will not be called multiple times).
+
+The signature of the callback depends on the signal, however we can already indicate
+that they all be passed the _pvdd_ object as their first parameter. This makes it
+easier to use the same callback for different pvdd connections.
 
 A few signals are available. They will be triggered in various situations,
 explained below. The corresponding signal names are :
@@ -81,6 +87,13 @@ connection is closed (either locally or remotely))
 + "pvdAttribute" : called when a given attribute for a given pvd has been received
 + "newPvd" : called when a pvd has appeared
 + "delPvd" : called when a pvd has disappeared
+
+It is possible to detach a previously attached closure from a signal :
+
+~~~~
+pvdd.off(signalName, callback)
+~~~~
+
 
 ### Subscriptions
 
@@ -146,7 +159,7 @@ is triggered.
 
 ### Disconnecting
 
-If for some reason, the application want to temporarily close the connection, it
+If for some reason, the application wants to temporarily close the connection, it
 may disconnect it.
 
 ~~~~
