@@ -18,6 +18,7 @@
 
 import os
 import threading
+import queue
 import socket
 import re
 import json
@@ -40,12 +41,19 @@ def setval(*arg):
             return v
     return None
 
-class eventEmitter:
+class eventEmitter(threading.Thread):
     """Implements a basic event emitter """
     def __init__(self):
+        threading.Thread.__init__(self)
         self.listeners = {}
+        self.active = True
+        self.q = queue.Queue()
+        self.start()
 
     def addListener(self, signal, closure):
+        self.q.put(("addListener", signal, closure))
+
+    def _addListener(self, signal, closure):
         if signal not in self.listeners:
             theListeners = []
         else:
@@ -57,6 +65,9 @@ class eventEmitter:
         self.listeners[signal] = theListeners
 
     def delListener(self, signal, closure):
+        self.q.put(("delListener", signal, closure))
+
+    def _delListener(self, signal, closure):
         if signal in self.listeners:
             theListeners = self.listeners[signal]
             if closure in theListeners:
@@ -68,10 +79,28 @@ class eventEmitter:
                     self.listeners[signal] = theListeners
 
     def notifyListeners(self, signal, *args):
+        self.q.put(("notifyListeners", signal, args))
+
+    def _notifyListeners(self, signal, args):
         if signal in self.listeners:
             for closure in self.listeners[signal]:
                 if closure(*args):
-                    return True
+                    return
+
+    def leave(self):
+        self.q.put(("leave",))
+
+    def run(self):
+        while True:
+            action, *args = self.q.get()
+            if action == "leave":
+                break
+            if action == "addListener":
+                self._addListener(*args)
+            elif action == "delListener":
+                self._delListener(*args)
+            elif action == "notifyListeners":
+                self._notifyListeners(*args)
 
 class pvdd(threading.Thread):
     """Provides an object connected to the pvdd
@@ -111,9 +140,10 @@ pvddCnx.connect(autoReconnect = True)
             self.active = False
             self.disconnect()
             self.c.notify()
+        self.emitter.leave()
 
     def emit(self, signal, *args):
-        return self.emitter.notifyListeners(signal, self, *args)
+        self.emitter.notifyListeners(signal, self, *args)
 
     def handleMultiLine(self, msg):
         r = re.split("PVD_ATTRIBUTES +([^ \n]+)\n([\s\S]+)", msg)
