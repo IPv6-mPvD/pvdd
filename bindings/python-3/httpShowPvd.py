@@ -28,13 +28,14 @@ PORT = 8100
 class MyHandler(server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.0"
     def do_GET(self):
+        host = self.headers["Host"] if "Host" in self.headers else "localhost:" + str(PORT)
         self.send_response(200)
         if self.path == '/':
             s = "<!DOCTYPE html><html><head>" +\
                 "<title>Provisionning domains</title>" +\
                 "</head><body>\n"
             for pvd in sorted(allPvd):
-                s = s + "<a href=http://localhost:" + str(PORT)  + "/" + pvd +\
+                s = s + "<a href=http://" + host + "/" + pvd +\
                         " title='" + pvd2str(pvd).replace("'", "&#39;") +\
                         "'>" + pvd + "</a><br>\n"
             self.send_header("Content-Type", "text/html")
@@ -69,7 +70,7 @@ pvdd.on("pvdList", handlePvdList)
 pvdd.on("pvdAttributes", handlePvdAttributes)
 pvdd.connect(autoReconnect = True, verbose = False)
 
-httpd = server.HTTPServer(("127.0.0.1", PORT), MyHandler)
+httpd = server.HTTPServer(("", PORT), MyHandler)
 sa = httpd.socket.getsockname()
 print("Serving HTTP on", sa[0], "port", sa[1], "...")
 try:
