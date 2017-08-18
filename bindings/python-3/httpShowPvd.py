@@ -21,8 +21,6 @@
 # http://localhost:8100/<pvd> => displays the attributes for <pvd>
 from http import server
 import pvdd
-import sys
-import io
 import json
 
 PORT = 8100
@@ -79,5 +77,5 @@ try:
 except KeyboardInterrupt:
     print("\nKeyboard interrupt received, exiting.")
     httpd.server_close()
-    sys.exit(0)
+    pvdd.leave()
 
