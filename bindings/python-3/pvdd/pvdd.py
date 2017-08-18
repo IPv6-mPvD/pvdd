@@ -22,10 +22,11 @@ import queue
 import socket
 import re
 import json
+from collections import OrderedDict
 
-def noerr(closure, *args):
+def noerr(closure, *args, **kwargs):
     try:
-        return closure(*args)
+        return closure(*args, **kwargs)
     except Exception as e:
         return None
 
@@ -148,7 +149,7 @@ pvddCnx.connect(autoReconnect = True)
     def handleMultiLine(self, msg):
         r = re.split("PVD_ATTRIBUTES +([^ \n]+)\n([\s\S]+)", msg)
         if len(r) == 4:
-            attr = noerr(json.loads, r[2])
+            attr = noerr(json.loads, r[2], object_pairs_hook = OrderedDict)
             if attr != None:
                 self.emit("pvdAttributes", r[1], attr)
                 if self.verbose:
@@ -157,7 +158,7 @@ pvddCnx.connect(autoReconnect = True)
 
         r = re.split("PVD_ATTRIBUTE +([^ ]+) +([^ \n]+)\n([\s\S]+)", msg)
         if len(r) == 5:
-            attr = noerr(json.loads, r[3])
+            attr = noerr(json.loads, r[3], object_pairs_hook = OrderedDict)
             if attr != None:
                 self.emit("pvdAttribute", r[1], r[2], attr)
                 self.emit("on" + r[2], r[1], attr)
