@@ -71,7 +71,7 @@ class pvddsync(pvdd.pvdd):
     def getSyncList(self, TO = None):
         with self.condPvdList:
             self.syncPvd.getList()
-            self.pvdList = None
+            self.pvdList = []
             self.condPvdList.wait(self.getTO(TO))
 
         return self.pvdList
