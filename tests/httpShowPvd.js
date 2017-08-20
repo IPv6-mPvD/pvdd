@@ -50,7 +50,6 @@ function pvd2str(pvd) {
 }
 
 var server = http.createServer(function(req, res) {
-	h = {};
 	pvd = req.url.slice(1);
 	if (pvd == null || pvd == "") {
 		s = "<!DOCTYPE html><html><head>" +
@@ -62,10 +61,11 @@ var server = http.createServer(function(req, res) {
 			     "'>" + pvd + "</a><br>\n";
 		});
 		s += "</body></html>";
+		h = { "Content-Type" : "text/html" };
 	}
 	else {
-		h = { 'Content-Type': 'application/json' };
 		s = pvd2str(pvd);
+		h = { "Content-Type": "application/json" };
 	}
 	res.writeHead(200, h);
 	res.end(s);
