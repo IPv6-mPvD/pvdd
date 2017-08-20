@@ -38,6 +38,7 @@ class MyHandler(server.BaseHTTPRequestHandler):
                 s = s + "<a href=http://" + host + "/" + pvd +\
                         " title='" + pvd2str(pvd).replace("'", "&#39;") +\
                         "'>" + pvd + "</a><br>\n"
+            s = s + "</body></html>"
             self.send_header("Content-Type", "text/html")
         else:
             self.send_header("Content-Type", "application/json")
@@ -78,5 +79,6 @@ try:
 except KeyboardInterrupt:
     print("\nKeyboard interrupt received, exiting.")
     httpd.server_close()
-    pvdd.leave()
+
+pvdd.leave()
 
