@@ -166,9 +166,9 @@ regularCnx.succeeded = true;
 
 regularCnx.on("connect", function() {
 	regularCnx.succeeded = true;
-	regularCnx.getList();
 	regularCnx.subscribeNotifications();
 	regularCnx.subscribeAttribute("*");
+	regularCnx.getList();
 	console.log("Regular connection established with pvdd");
 });
 

@@ -236,9 +236,9 @@ var cnx = pvddConnnect({ autoReconnect : true, controlConnection : false });
 
 cnx.on("connect", function() {
 	console.log("connection established with pvdd");
-	cnx.getList();
 	cnx.subscribeNotifications();
 	cnx.subscribeAttribute("*");
+	cnx.getList();
 });
 cnx.on("error", function(err) {
 	console.log("connexion error : " + err);
