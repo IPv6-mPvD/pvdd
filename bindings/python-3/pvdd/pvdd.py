@@ -322,7 +322,7 @@ pvddCnx.connect(autoReconnect = True)
                 if self.sock != None:
                     self.c.notify()
 
-            if self.sock == None and self.autoReconnect:
+            if self.autoReconnect:
                 self.timer = threading.Timer(1.0, self.internalConnection)
                 self.timer.start()
 
