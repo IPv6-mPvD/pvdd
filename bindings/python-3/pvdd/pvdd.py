@@ -278,7 +278,7 @@ pvddCnx.connect(autoReconnect = True)
                   "PVD_BEGIN_MULTILINE\n" +
                   "PVD_SET_ATTRIBUTE " + pvdName + " " +
                                     attrName + "\n" +
-                                    JSON.stringify(attrValue, null, 12) + "\n" +
+                                    json.dumps(attrValue, indent = 12) + "\n" +
                   "PVD_END_MULTILINE\n" +
                   "PVD_END_TRANSACTION " + pvdName + "\n")
 
