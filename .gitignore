@@ -10,6 +10,8 @@ obj
 node_modules
 pvd-bound-socks
 pvd-bound-socks.o
+pvd-test-saddr
+pvd-test-saddr.o
 pvdd-*.tgz
 npm-debug.log
 __pycache__
