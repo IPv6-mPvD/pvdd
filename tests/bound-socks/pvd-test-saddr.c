@@ -69,7 +69,7 @@ static	void	usage(FILE *fo)
 {
 	fprintf(fo, "usage : pvd-test-saddr [-h|--help] [<option>*]\n");
 	fprintf(fo, "where option :\n");
-	fprintf(fo, "\t-r|--remote <h:o:s:t:(:I:P:v:6> : IPv6 dotted address of the server\n");
+	fprintf(fo, "\t-r|--remote <h:o:s:t:-:I:P:v:6> : IPv6 dotted address of the server\n");
 	fprintf(fo, "\t-p|--pvd <pvdname> : selected pvd (optional)\n");
 	fprintf(fo, "\t-l|--list : print out the current pvd list\n");
 	fprintf(fo, "\n");
