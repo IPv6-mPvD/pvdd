@@ -196,6 +196,7 @@ int	main(int argc, char **argv)
 		else {
 			perror("kernel_get_pvdlist");
 		}
+		return(1);
 	}
 
 	if (RemoteHost == NULL) {
