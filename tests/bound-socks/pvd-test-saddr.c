@@ -56,15 +56,24 @@
 
 #include <libpvd.h>
 
+#undef	true
+#undef	false
+#define	true	(1 == 1)
+#define	false	(1 == 0)
+
 #define	EQSTR(a, b)	(strcasecmp((a), (b)) == 0)
 
 #define	PORT	8300
 
 static	void	usage(FILE *fo)
 {
-	fprintf(fo, "usage : pvd-test-saddr [-h|--help] [-r <h:o:s:t:2:I:p:v:6>] [-p <pvdname>]\n");
+	fprintf(fo, "usage : pvd-test-saddr [-h|--help] [<option>*]\n");
+	fprintf(fo, "where option :\n");
+	fprintf(fo, "\t-r|--remote <h:o:s:t:2:I:p:v:6> : IPv6 dotted address of the server\n");
+	fprintf(fo, "\t-p|--pvd <pvdname> : selected pvd\n");
+	fprintf(fo, "\t-l|--list : print out the curren pvd list\n");
 	fprintf(fo, "\n");
-	fprintf(fo, "Open a socket, bind it to a pvd and connect to host2\n");
+	fprintf(fo, "Open a socket, bind it to a pvd and connect to server\n");
 	fprintf(fo, "\n");
 	fprintf(fo, "If no option is specified, act as a server waiting for connection and\n");
 	fprintf(fo, "displaying peer's address\n");
@@ -135,6 +144,7 @@ int	main(int argc, char **argv)
 	char	*RemoteHost = NULL;
 	struct in6_addr	sin6;
 	struct sockaddr_in6 sa6;
+	int	ShowPvdList = false;
 
 	for (i = 1; i < argc; i++) {
 		if (EQSTR(argv[i], "-h") || EQSTR(argv[i], "--help")) {
@@ -161,11 +171,31 @@ int	main(int argc, char **argv)
 			}
 			continue;
 		}
+		if (EQSTR(argv[i], "-l") || EQSTR(argv[i], "--list")) {
+			ShowPvdList = true;
+			continue;
+		}
+
 		/*
 		 * Unknown option
 		 */
 		usage(stderr);
 		return(-1);
+	}
+
+	if (ShowPvdList) {
+		struct pvd_list pvl;
+
+		pvl.npvd = MAXPVD;
+		if (kernel_get_pvdlist(&pvl) != -1) {
+			printf("Pvd list : %d pvds\n", pvl.npvd);
+			for (i = 0; i < pvl.npvd; i++) {
+				printf("\t%s\n", pvl.pvds[i]);
+			}
+		}
+		else {
+			perror("kernel_get_pvdlist");
+		}
 	}
 
 	if (RemoteHost == NULL) {
