@@ -129,7 +129,9 @@ static	int	Server(void)
 			}
 			else {
 				printf("Remote host connected : %s\n", PeerName);
-				(void) write(sc, PeerName, strlen(PeerName) + 1);
+				if (write(sc, PeerName, strlen(PeerName) + 1) < 0) {
+					perror("write response");
+				}
 			}
 			close(sc);
 		}
