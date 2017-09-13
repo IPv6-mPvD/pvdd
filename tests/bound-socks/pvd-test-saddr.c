@@ -129,6 +129,7 @@ static	int	Server(void)
 			}
 			else {
 				printf("Remote host connected : %s\n", PeerName);
+				(void) write(sc, PeerName, strlen(PeerName) + 1);
 			}
 			close(sc);
 		}
@@ -144,6 +145,7 @@ int	main(int argc, char **argv)
 	char	*RemoteHost = NULL;
 	struct in6_addr	sin6;
 	struct sockaddr_in6 sa6;
+	char	PeerName[128];
 	int	ShowPvdList = false;
 
 	for (i = 1; i < argc; i++) {
@@ -237,6 +239,12 @@ int	main(int argc, char **argv)
 		perror(RemoteHost);
 		return(1);
 	}
+
+	if (read(s, PeerName, sizeof(PeerName) - 1) >= 0) {
+		printf("My IPv6 address : %s\n", PeerName);
+	}
+
+	shutdown(s, SHUT_RDWR);
 
 	close(s);
 
