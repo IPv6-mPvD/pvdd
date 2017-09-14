@@ -27,7 +27,7 @@ with a remote server using or not a specified pvd. The remote end prints out the
 client's source address of the connection and sends it back to the client to check
 that the return path is working properly.
 
-Contrary to the _pvd-bound-sock_ program, the _mvd-test-saddr_ test program requires
+Contrary to the _pvd-bound-sock_ program, the _pvd-test-saddr_ test program requires
 a networked test infrastructure to work.
 
 The following diagram depicts this infrastructure :
@@ -110,7 +110,7 @@ If no option is specified, act as a server waiting for connection and
 displaying peer's address
 ~~~~
 
-Typical startup commande, once all kvm machines have been started and radvd launched on the routers :
+Typical startup command, once all kvm machines have been started and radvd launched on the routers :
 
 ~~~~
 Login on the server (aka host2) :
