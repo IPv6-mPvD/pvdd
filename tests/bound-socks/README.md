@@ -97,11 +97,7 @@ suitable for this  test.
 Usage :
 
 ~~~~
-./pvd-bound-socks -h
-usage : pvd-bound-socks [-h|--help] [<pvdname>]
-
-Open a socket, bind it to a pvd and retrieve the current bound pvd set
-[thierry@vmdanis2 bound-socks]$ ./pvd-test-saddr -h
+./pvd-test-saddr -h
 usage : pvd-test-saddr [-h|--help] [<option>*]
 where option :
         -r|--remote <h:o:s:t:-:I:P:v:6> : IPv6 dotted address of the server
@@ -128,10 +124,11 @@ Login on the client (aka host1) :
 	./pvd-test-saddr -l
 		=> grab one pvd in the pvd list
 	./pvd-test-saddr -r 2001:db8:cafe:ffff:babe
-		=> this uses the default source address selection algorithm
+		=> this uses the default source address selection algorithm (aka router2 [longest prefix])
 	./pvd-test-saddr -r 2001:db8:cafe:ffff:babe -p <pvd1>
 		=> uses pvd1 in the route and source address selection algorithm
 	./pvd-test-saddr -r 2001:db8:cafe:ffff:babe -p <pvd2>
+		=> uses pvd2 in the route and source address selection algorithm
 ~~~~
 
 With the above configuration, the client (_host1_) shoud choose an address of the _router2_ advertised prefix
