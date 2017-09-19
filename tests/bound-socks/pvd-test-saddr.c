@@ -71,6 +71,8 @@ static	void	usage(FILE *fo)
 	fprintf(fo, "where option :\n");
 	fprintf(fo, "\t-r|--remote <h:o:s:t:-:I:P:v:6> : IPv6 dotted address of the server\n");
 	fprintf(fo, "\t-p|--pvd <pvdname> : selected pvd (optional)\n");
+	fprintf(fo, "\t-c|--count <#> : loops counts (default 1)\n");
+	fprintf(fo, "\t-i|--interval <#> : interval between 2 loops (0.5 second by default)\n");
 	fprintf(fo, "\t-l|--list : print out the current pvd list\n");
 	fprintf(fo, "\n");
 	fprintf(fo, "Open a socket, bind it to a pvd and connect to server\n");
@@ -149,6 +151,9 @@ int	main(int argc, char **argv)
 	struct sockaddr_in6 sa6;
 	char	PeerName[128];
 	int	ShowPvdList = false;
+	int	Count = 1;
+	double	Interval = 0.5;
+	char	*pt;
 
 	for (i = 1; i < argc; i++) {
 		if (EQSTR(argv[i], "-h") || EQSTR(argv[i], "--help")) {
@@ -175,6 +180,40 @@ int	main(int argc, char **argv)
 			}
 			continue;
 		}
+		if (EQSTR(argv[i], "-i") || EQSTR(argv[i], "--interval")) {
+			if (i < argc - 1) {
+				Interval = strtod(argv[++i], &pt);
+				if (pt == NULL || *pt != '\0' || errno == ERANGE) {
+					fprintf(stderr,
+						"%s : invalid interval floating point value\n",
+						argv[i]);
+					usage(stderr);
+					return(1);
+				}
+			}
+			else {
+				usage(stderr);
+				return(-1);
+			}
+			continue;
+		}
+		if (EQSTR(argv[i], "-c") || EQSTR(argv[i], "--count")) {
+			if (i < argc - 1) {
+				Count = strtol(argv[++i], &pt, 10);
+				if (pt == NULL || *pt != '\0' || errno == ERANGE) {
+					fprintf(stderr,
+						"%s : invalid count value\n",
+						argv[i]);
+					usage(stderr);
+					return(1);
+				}
+			}
+			else {
+				usage(stderr);
+				return(-1);
+			}
+			continue;
+		}
 		if (EQSTR(argv[i], "-l") || EQSTR(argv[i], "--list")) {
 			ShowPvdList = true;
 			continue;
@@ -185,6 +224,14 @@ int	main(int argc, char **argv)
 		 */
 		usage(stderr);
 		return(-1);
+	}
+
+	if (Count < 0) {
+		Count = 1;
+	}
+
+	if (Interval < 0.1) {
+		Interval = 0.1;
 	}
 
 	if (ShowPvdList) {
@@ -212,43 +259,49 @@ int	main(int argc, char **argv)
 	/*
 	 * Client part : establish a socket connection with the IPv6 remote
 	 */
-	if ((s = socket(AF_INET6, SOCK_STREAM, 0)) == -1) {
-		perror("socket");
-		return(1);
-	}
+	for (; Count > 0; Count--) {
+		if ((s = socket(AF_INET6, SOCK_STREAM, 0)) == -1) {
+			perror("socket");
+			return(1);
+		}
 
-	/*
-	 * If a pvd name has been specified, use it
-	 */
-	if (PvdName != NULL && sock_bind_to_pvd(s, PvdName) == -1) {
-		fprintf(stderr, "sock_bind_to_pvd(%s) : %s\n", PvdName, strerror(errno));
+		/*
+		 * If a pvd name has been specified, use it
+		 */
+		if (PvdName != NULL && sock_bind_to_pvd(s, PvdName) == -1) {
+			fprintf(stderr, "sock_bind_to_pvd(%s) : %s\n", PvdName, strerror(errno));
+			close(s);
+			return(1);
+		}
+
+		if (inet_pton(AF_INET6, RemoteHost, &sin6) == -1) {
+			perror(RemoteHost);
+			return(1);
+		}
+
+		sa6.sin6_family = AF_INET6;
+		sa6.sin6_addr = sin6;
+		sa6.sin6_port = htons(PORT);
+		sa6.sin6_flowinfo = 0;
+		sa6.sin6_scope_id = 0;
+
+		if (connect(s, (struct sockaddr *) &sa6, sizeof(sa6)) == -1) {
+			perror(RemoteHost);
+			return(1);
+		}
+
+		if (read(s, PeerName, sizeof(PeerName) - 1) >= 0) {
+			printf("My IPv6 address : %s\n", PeerName);
+		}
+
+		shutdown(s, SHUT_RDWR);
+
 		close(s);
-		return(1);
+
+		if (Count > 1) {
+			usleep(Interval * 1000000L);
+		}
 	}
-
-	if (inet_pton(AF_INET6, RemoteHost, &sin6) == -1) {
-		perror(RemoteHost);
-		return(1);
-	}
-
-	sa6.sin6_family = AF_INET6;
-	sa6.sin6_addr = sin6;
-	sa6.sin6_port = htons(PORT);
-	sa6.sin6_flowinfo = 0;
-	sa6.sin6_scope_id = 0;
-
-	if (connect(s, (struct sockaddr *) &sa6, sizeof(sa6)) == -1) {
-		perror(RemoteHost);
-		return(1);
-	}
-
-	if (read(s, PeerName, sizeof(PeerName) - 1) >= 0) {
-		printf("My IPv6 address : %s\n", PeerName);
-	}
-
-	shutdown(s, SHUT_RDWR);
-
-	close(s);
 
 	return(0);
 }
