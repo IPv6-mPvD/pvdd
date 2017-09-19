@@ -291,7 +291,7 @@ int	main(int argc, char **argv)
 		}
 
 		if (read(s, PeerName, sizeof(PeerName) - 1) >= 0) {
-			printf("My IPv6 address : %s\n", PeerName);
+			printf("[%d] My IPv6 address : %s\n", Count, PeerName);
 		}
 
 		shutdown(s, SHUT_RDWR);
