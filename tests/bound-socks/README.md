@@ -97,17 +97,31 @@ suitable for this  test.
 Usage :
 
 ~~~~
-./pvd-test-saddr -h
+$ ./pvd-test-saddr -h
 usage : pvd-test-saddr [-h|--help] [<option>*]
 where option :
         -r|--remote <h:o:s:t:-:I:P:v:6> : IPv6 dotted address of the server
         -p|--pvd <pvdname> : selected pvd (optional)
+        -c|--count <#> : loops counts (default 1)
+        -i|--interval <#> : interval (in ms) between 2 loops (500 ms by default)
         -l|--list : print out the current pvd list
+        -u|--udp : client connects using UDP (TCP default)
 
-Open a socket, bind it to a pvd and connect to server
+Open a socket, bind it to a pvd and connect to server, them perform
+a send/receive loop (the server is sending the client's address to the
+client)
 
+Multiple pvd can be specified. In this case, the client opens as many
+connections with the server with the specified pvds. Specifying 'none' as
+a pvd name means that no pvd will be attached to the associated socket
 If no option is specified, act as a server waiting for connection and
-displaying peer's address
+displaying peer's address. Note that the server always listens for TCP
+and UDP connections
+
+Example :
+./pvd-test-saddr -u -r ::1 -p pvd1.my.org -p pvd2.my.org -p none -c 10 -i 1200
+This creates 3 UDP connection with the server (on localhost) and performs 10
+send/receive loops, each separated by 1.2 seconds
 ~~~~
 
 Typical startup command, once all kvm machines have been started and radvd launched on the routers :
