@@ -63,7 +63,14 @@
 
 #define	EQSTR(a, b)	(strcasecmp((a), (b)) == 0)
 
+#define	DIM(t)	(sizeof(t) / sizeof(t[0]))
+
 #define	PORT	8300
+
+#define	MAXSOCKETS	16
+
+#define	INMSGSIZE	16
+#define	PEERNAMESIZE	128
 
 static	void	usage(FILE *fo)
 {
@@ -72,31 +79,96 @@ static	void	usage(FILE *fo)
 	fprintf(fo, "\t-r|--remote <h:o:s:t:-:I:P:v:6> : IPv6 dotted address of the server\n");
 	fprintf(fo, "\t-p|--pvd <pvdname> : selected pvd (optional)\n");
 	fprintf(fo, "\t-c|--count <#> : loops counts (default 1)\n");
-	fprintf(fo, "\t-i|--interval <#> : interval between 2 loops (0.5 second by default)\n");
+	fprintf(fo, "\t-i|--interval <#> : interval (in ms) between 2 loops (500 ms by default)\n");
 	fprintf(fo, "\t-l|--list : print out the current pvd list\n");
+	fprintf(fo, "\t-u|--udp : client connects using UDP (TCP default)\n");
 	fprintf(fo, "\n");
-	fprintf(fo, "Open a socket, bind it to a pvd and connect to server\n");
+	fprintf(fo, "Open a socket, bind it to a pvd and connect to server, them perform\n");
+	fprintf(fo, "a send/receive loop (the server is sending the client's address to the\n");
+	fprintf(fo, "client)\n");
 	fprintf(fo, "\n");
+	fprintf(fo, "Multiple pvd can be specified. In this case, the client opens as many\n");
+	fprintf(fo, "connections with the server with the specified pvds. Specifying 'none' as\n");
+	fprintf(fo, "a pvd name means that no pvd will be attached to the associated socket\n");
 	fprintf(fo, "If no option is specified, act as a server waiting for connection and\n");
-	fprintf(fo, "displaying peer's address\n");
+	fprintf(fo, "displaying peer's address. Note that the server always listens for TCP\n");
+	fprintf(fo, "and UDP connections\n");
+	fprintf(fo, "\n");
+	fprintf(fo, "Example :\n");
+	fprintf(fo, "./pvd-test-saddr -u -r ::1 -p pvd1.my.org -p pvd2.my.org -p none -c 10 -i 1200\n");
+	fprintf(fo, "This creates 3 UDP connection with the server (on localhost) and performs 10\n");
+	fprintf(fo, "send/receive loops, each separated by 1.2 seconds\n");
+}
+
+/*
+ * The server part : it listens for TCP and UDP connections.
+ * It reads an incoming message, then sends back a message containing
+ * the client's IPv6 address prefixed with the incoming message
+ */
+static	int	RecvFromSocket(int s, int FlagUdp)
+{
+	struct sockaddr_in6 sa6;
+	socklen_t	salen = sizeof(sa6);
+	char		PeerName[PEERNAMESIZE];
+	char		Msg[INMSGSIZE];
+	int		n;
+
+	if (FlagUdp) {
+		n = recvfrom(
+			s,
+			Msg, sizeof(Msg),
+			0,
+			(struct sockaddr *) &sa6, &salen);
+	}
+	else {
+		if (getpeername(s, (struct sockaddr *) &sa6, &salen) == -1) {
+			perror("getpeername");
+			return(-1);
+		}
+		n = recv(s, Msg, sizeof(Msg), 0);
+	}
+
+	if (n > 0) {
+		sprintf(PeerName, "%s : ", Msg);
+
+		if (inet_ntop(AF_INET6, 
+			      &sa6.sin6_addr,
+			      &PeerName[strlen(PeerName)], sizeof(PeerName)) == NULL) {
+			perror("inet_ntop");
+			return(-1);
+		}
+		else {
+			printf("%s : %s\n", FlagUdp ? "UDP" : "TCP", PeerName);
+			if (sendto(s,
+				   PeerName, sizeof(PeerName),
+				   0, 
+				   (struct sockaddr *) &sa6, sizeof(sa6)) == -1) {
+				perror("sendto");
+				return(-1);
+			}
+		}
+	}
+	else {
+		if (n < 0) {
+			fprintf(stderr,
+				"%s : %s\n", 
+				FlagUdp ? "UDP" : "TCP",
+				strerror(errno));
+		}
+		return(-1);
+	}
+	return(0);
 }
 
 static	int	Server(void)
 {
-	int	s;
+	int	i, j;
+	int	TCPSocket;
+	int	UDPSocket;
 	int	one = 1;
 	struct sockaddr_in6 sa6;
-
-	if ((s = socket(AF_INET6, SOCK_STREAM, 0)) == -1) {
-		perror("socket");
-		return(-1);
-	}
-
-	if (setsockopt(s, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one)) == -1) {
-		perror("SO_REUSEPORT");
-		close(s);
-		return(-1);
-	}
+	int	NClients = 0;
+	int	ClientSockets[MAXSOCKETS];
 
 	memset((char *) &sa6, 0, sizeof(sa6));
 
@@ -104,55 +176,208 @@ static	int	Server(void)
 	sa6.sin6_addr = in6addr_any;
 	sa6.sin6_port = htons(PORT);
 
-	if (bind(s, (struct sockaddr *) &sa6, sizeof(sa6)) < 0) {
-		perror("bind");
-		close(s);
+	/*
+	 * Create the TCP socket
+	 */
+	if ((TCPSocket = socket(AF_INET6, SOCK_STREAM, 0)) == -1) {
+		perror("TCP socket");
 		return(-1);
 	}
 
-	if (listen(s, 10) == -1) {
-		perror("listen");
-		close(s);
+	if (setsockopt(TCPSocket, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one)) == -1) {
+		perror("SO_REUSEPORT");
+		close(TCPSocket);
 		return(-1);
 	}
 
+	if (bind(TCPSocket, (struct sockaddr *) &sa6, sizeof(sa6)) < 0) {
+		perror("TCP bind");
+		close(TCPSocket);
+		return(-1);
+	}
+
+	if (listen(TCPSocket, 10) == -1) {
+		perror("TCP listen");
+		close(TCPSocket);
+		return(-1);
+	}
+
+	/*
+	 * Idem for the UDP socket
+	 */
+	if ((UDPSocket = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
+		perror("UDP socket");
+		return(-1);
+	}
+
+	if (setsockopt(UDPSocket, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one)) == -1) {
+		perror("SO_REUSEPORT");
+		close(UDPSocket);
+		return(-1);
+	}
+
+	if (bind(UDPSocket, (struct sockaddr *) &sa6, sizeof(sa6)) < 0) {
+		perror("UDP bind");
+		close(UDPSocket);
+		return(-1);
+	}
+
+
+	/*
+	 * Main loop : we wait for messages coming on the UDP, TCP server sockets,
+	 * as well as on the TCP clients sockets
+	 */
 	while (1) {
+		fd_set		fdsI;
+		int		nFds = -1;
 		socklen_t	salen = sizeof(sa6);
-		int		sc = accept(s, (struct sockaddr *) &sa6, &salen);
 
-		if (sc == -1) {
-			perror("accept");
+		FD_ZERO(&fdsI);
+
+		FD_SET(TCPSocket, &fdsI);
+		if (TCPSocket > nFds) nFds = TCPSocket;
+
+		FD_SET(UDPSocket, &fdsI);
+		if (UDPSocket > nFds) nFds = UDPSocket;
+
+		for (i = 0; i < NClients; i++) {
+			FD_SET(ClientSockets[i], &fdsI);
+			if (ClientSockets[i] > nFds) nFds = ClientSockets[i];
 		}
-		else {
-			char PeerName[128];
 
-			if (inet_ntop(AF_INET6, &sa6.sin6_addr, PeerName, sizeof(PeerName) - 1) == NULL) {
-				perror("inet_ntop");
+		if (select(nFds + 1, &fdsI, NULL, NULL, NULL) == -1) {
+			perror("server : select");
+			exit(1);
+		}
+
+		if (FD_ISSET(TCPSocket, &fdsI)) {
+			char	PeerName[PEERNAMESIZE];
+			int	sc = accept(
+					TCPSocket, (struct sockaddr *) &sa6, &salen);
+
+			if (sc == -1) {
+				perror("accept");
+			} else
+			if (NClients >= DIM(ClientSockets)) {
+				fprintf(stderr, "Too many TCP clients\n");
+				close(sc);
 			}
 			else {
-				printf("Remote host connected : %s\n", PeerName);
-				if (write(sc, PeerName, strlen(PeerName) + 1) < 0) {
-					perror("write response");
+				ClientSockets[NClients++] = sc;
+				if (inet_ntop(AF_INET6, 
+					      &sa6.sin6_addr,
+					      PeerName, sizeof(PeerName)) == NULL) {
+					perror("inet_ntop");
+					close(sc);
 				}
 			}
-			close(sc);
 		}
+
+		if (FD_ISSET(UDPSocket, &fdsI)) {
+			RecvFromSocket(UDPSocket, true);
+		}
+
+		for (i = 0; i < NClients; i++) {
+			if (FD_ISSET(ClientSockets[i], &fdsI)) {
+				if (RecvFromSocket(ClientSockets[i], false) == -1) {
+					shutdown(ClientSockets[i], SHUT_RDWR);
+					close(ClientSockets[i]);
+					ClientSockets[i] = -1;
+				}
+			}
+		}
+
+		/*
+		 * Compact the clients sockets array in case we have closed
+		 * some of them
+		 */
+		for (i = 0, j = 0; i < NClients; i++) {
+			if (ClientSockets[i] != -1) {
+				ClientSockets[j] = ClientSockets[i];
+				j++;
+			}
+		}
+		NClients = j;
 	}
 }
 
 
+static	void	CloseSockets(int Sockets[], int NSockets)
+{
+	int	i;
+
+	for (i = 0; i < NSockets; i++) {
+		shutdown(Sockets[i], SHUT_RDWR);
+		close(Sockets[i]);
+	}
+}
+
+static	int	CreateSocket(
+			int FlagUdp,
+			int Sockets[],
+			int *NSockets,
+			struct sockaddr_in6 *ServerSa6,
+			char *ServerName,	/* for logs purpose */
+			char *PvdName)
+{
+	int	s;
+
+	if ((s = socket(AF_INET6,
+			FlagUdp ? SOCK_DGRAM : SOCK_STREAM,
+			FlagUdp ? IPPROTO_UDP : 0)) == -1) {
+		return(-1);
+	}
+
+	/*
+	 * If a pvd name has been specified, use it
+	 */
+	if (PvdName != NULL && ! EQSTR(PvdName, "none") &&
+	    sock_bind_to_pvd(s, PvdName) == -1) {
+		fprintf(stderr,
+			"sock_bind_to_pvd(%s) : %s\n",
+			PvdName,
+			strerror(errno));
+		close(s);
+		return(-1);
+	}
+
+	/*
+	 * Establish a connection with the server in TCP mode
+	 */
+	if (! FlagUdp) {
+		if (connect(s, (struct sockaddr *) ServerSa6, sizeof(*ServerSa6)) == -1) {
+			perror(ServerName);
+			close(s);
+			return(-1);
+		}
+		else {
+			printf("TCP connection with pvd %s OK\n", PvdName);
+		}
+	}
+
+	Sockets[(*NSockets)++] = s;
+
+	return(s);
+}
+
 int	main(int argc, char **argv)
 {
 	int	i;
-	int	s;
-	char	*PvdName = NULL;
+	int	NSockets = 0;
+	int	Sockets[MAXSOCKETS];
+	int	NPvd = 0;
+	char	*PvdName[MAXSOCKETS];
 	char	*RemoteHost = NULL;
 	struct in6_addr	sin6;
 	struct sockaddr_in6 sa6;
-	char	PeerName[128];
+	struct sockaddr_in6 OtherSa6;
+	socklen_t	OtherSa6Len;
+	char	PeerName[PEERNAMESIZE];
 	int	ShowPvdList = false;
 	int	Count = 1;
-	double	Interval = 0.5;
+	int	Interval = 500;
+	int	FlagUdp = false;
+
 	char	*pt;
 
 	for (i = 1; i < argc; i++) {
@@ -162,7 +387,13 @@ int	main(int argc, char **argv)
 		}
 		if (EQSTR(argv[i], "-p") || EQSTR(argv[i], "--pvd")) {
 			if (i < argc - 1) {
-				PvdName = argv[++i];
+				if (NPvd >= DIM(PvdName)) {
+					fprintf(stderr,
+						"Too many pvd specified (%d maximum)\n",
+						(int) DIM(PvdName));
+					return(1);
+				}
+				PvdName[NPvd++] = argv[++i];
 			}
 			else {
 				usage(stderr);
@@ -182,10 +413,10 @@ int	main(int argc, char **argv)
 		}
 		if (EQSTR(argv[i], "-i") || EQSTR(argv[i], "--interval")) {
 			if (i < argc - 1) {
-				Interval = strtod(argv[++i], &pt);
+				Interval = strtol(argv[++i], &pt, 10);
 				if (pt == NULL || *pt != '\0' || errno == ERANGE) {
 					fprintf(stderr,
-						"%s : invalid interval floating point value\n",
+						"%s : invalid interval value\n",
 						argv[i]);
 					usage(stderr);
 					return(1);
@@ -214,6 +445,11 @@ int	main(int argc, char **argv)
 			}
 			continue;
 		}
+		if (EQSTR(argv[i], "-u") || EQSTR(argv[i], "--udp")) {
+			FlagUdp = true;
+			continue;
+		}
+
 		if (EQSTR(argv[i], "-l") || EQSTR(argv[i], "--list")) {
 			ShowPvdList = true;
 			continue;
@@ -230,9 +466,11 @@ int	main(int argc, char **argv)
 		Count = 1;
 	}
 
-	if (Interval < 0.1) {
-		Interval = 0.1;
+	if (Interval < 100) {
+		Interval = 100;
 	}
+
+	printf("Starting test with %d loops at interval %d ms\n", Count, Interval);
 
 	if (ShowPvdList) {
 		struct pvd_list pvl;
@@ -257,51 +495,118 @@ int	main(int argc, char **argv)
 	}
 
 	/*
-	 * Client part : establish a socket connection with the IPv6 remote
+	 * Client part : creates the sockets and performs the requested
+	 * number of loops
+	 */
+	if (inet_pton(AF_INET6, RemoteHost, &sin6) == -1) {
+		perror(RemoteHost);
+		return(1);
+	}
+
+	sa6.sin6_family = AF_INET6;
+	sa6.sin6_addr = sin6;
+	sa6.sin6_port = htons(PORT);
+	sa6.sin6_flowinfo = 0;
+	sa6.sin6_scope_id = 0;
+
+	if (NPvd == 0) {
+		if (CreateSocket(
+				FlagUdp, 
+				Sockets, &NSockets,
+				&sa6,
+				RemoteHost,
+				"none") == -1) {
+			CloseSockets(Sockets, NSockets);
+			return(1);
+		}
+	}
+	else {
+		for (i = 0; i < NPvd; i++) {
+			if (CreateSocket(
+					FlagUdp, 
+					Sockets, &NSockets,
+					&sa6,
+					RemoteHost,
+					PvdName[i]) == -1) {
+				CloseSockets(Sockets, NSockets);
+				return(1);
+			}
+		}
+	}
+
+	/*
+	 * Main loop : for each socket, sends data, then, for each socket again,
+	 * waits for a message
 	 */
 	for (; Count > 0; Count--) {
-		if ((s = socket(AF_INET6, SOCK_STREAM, 0)) == -1) {
-			perror("socket");
-			return(1);
+		char	Msg[INMSGSIZE];
+
+		memset(Msg, 0, sizeof(Msg));
+		sprintf(Msg, "%d", Count);
+
+		/*
+		 * Send messages
+		 */
+		for (i = 0; i < NSockets; i++) {
+			if (FlagUdp) {
+				if (sendto(
+					Sockets[i],
+					Msg, sizeof(INMSGSIZE),
+					0, 
+					(struct sockaddr *) &sa6, sizeof(sa6)) == -1) {
+
+					perror("sendto");
+					CloseSockets(Sockets, NSockets);
+					return(1);
+				}
+			}
+			else {
+				if (write(Sockets[i],
+					  Msg, strlen(Msg) + 1) == -1) {
+					perror("write");
+					CloseSockets(Sockets, NSockets);
+					return(1);
+				}
+			}
 		}
 
 		/*
-		 * If a pvd name has been specified, use it
+		 * Read answers from the server
 		 */
-		if (PvdName != NULL && sock_bind_to_pvd(s, PvdName) == -1) {
-			fprintf(stderr, "sock_bind_to_pvd(%s) : %s\n", PvdName, strerror(errno));
-			close(s);
-			return(1);
+		for (i = 0; i < NSockets; i++) {
+			int	n;
+
+			if (FlagUdp) {
+				if (recvfrom(
+					Sockets[i],
+					PeerName, sizeof(PeerName),
+					0,
+					(struct sockaddr *) &OtherSa6, &OtherSa6Len) == -1) {
+
+					perror("recvfrom");
+					CloseSockets(Sockets, NSockets);
+					return(1);
+				}
+			}
+			else {
+				if ((n = read(Sockets[i], PeerName, sizeof(PeerName))) < 0) {
+					perror("read");
+					CloseSockets(Sockets, NSockets);
+					return(1);
+				}
+			}
+			printf("[%d] pvd %s : My IPv6 address : %s\n",
+				Count,
+				NPvd == 0 ? "none" : PvdName[i],
+				PeerName);
 		}
-
-		if (inet_pton(AF_INET6, RemoteHost, &sin6) == -1) {
-			perror(RemoteHost);
-			return(1);
-		}
-
-		sa6.sin6_family = AF_INET6;
-		sa6.sin6_addr = sin6;
-		sa6.sin6_port = htons(PORT);
-		sa6.sin6_flowinfo = 0;
-		sa6.sin6_scope_id = 0;
-
-		if (connect(s, (struct sockaddr *) &sa6, sizeof(sa6)) == -1) {
-			perror(RemoteHost);
-			return(1);
-		}
-
-		if (read(s, PeerName, sizeof(PeerName) - 1) >= 0) {
-			printf("[%d] My IPv6 address : %s\n", Count, PeerName);
-		}
-
-		shutdown(s, SHUT_RDWR);
-
-		close(s);
 
 		if (Count > 1) {
-			usleep(Interval * 1000000L);
+			usleep(Interval * 1000L);
 		}
 	}
+
+	CloseSockets(Sockets, NSockets);
 
 	return(0);
 }
