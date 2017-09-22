@@ -72,6 +72,10 @@
 #define	INMSGSIZE	16
 #define	PEERNAMESIZE	128
 
+#define	TCPMODE			1
+#define	UDPMODE			2
+#define	CONNECTEDUDPMODE	3
+
 static	void	usage(FILE *fo)
 {
 	fprintf(fo, "usage : pvd-test-saddr [-h|--help] [<option>*]\n");
@@ -317,8 +321,7 @@ static	void	CloseSockets(int Sockets[], int NSockets)
 }
 
 static	int	CreateSocket(
-			int FlagUdp,
-			int FlagConnectedUdp,
+			int ConnectionMode,
 			int Sockets[],
 			int *NSockets,
 			struct sockaddr_in6 *ServerSa6,
@@ -328,8 +331,8 @@ static	int	CreateSocket(
 	int	s;
 
 	if ((s = socket(AF_INET6,
-			FlagUdp ? SOCK_DGRAM : SOCK_STREAM,
-			FlagUdp ? IPPROTO_UDP : 0)) == -1) {
+			ConnectionMode != TCPMODE ? SOCK_DGRAM : SOCK_STREAM,
+			ConnectionMode != TCPMODE ? IPPROTO_UDP : 0)) == -1) {
 		return(-1);
 	}
 
@@ -350,7 +353,7 @@ static	int	CreateSocket(
 	 * Establish a connection with the server in TCP mode or
 	 * in UDP mode when the -U flag has been specified
 	 */
-	if (! FlagUdp || FlagConnectedUdp) {
+	if (ConnectionMode != UDPMODE) {
 		if (connect(s, (struct sockaddr *) ServerSa6, sizeof(*ServerSa6)) == -1) {
 			perror(ServerName);
 			close(s);
@@ -382,8 +385,7 @@ int	main(int argc, char **argv)
 	int	ShowPvdList = false;
 	int	Count = 1;
 	int	Interval = 500;
-	int	FlagUdp = false;
-	int	FlagConnectedUdp = false;
+	int	ConnectionMode = TCPMODE;
 	char	*Syscall;
 
 	char	*pt;
@@ -454,12 +456,12 @@ int	main(int argc, char **argv)
 			continue;
 		}
 		if (EQSTR(argv[i], "-u") || EQSTR(argv[i], "--udp")) {
-			FlagUdp = true;
+			ConnectionMode = UDPMODE;
 			continue;
 		}
 
 		if (EQSTR(argv[i], "-U") || EQSTR(argv[i], "--UDP")) {
-			FlagConnectedUdp = true;
+			ConnectionMode = CONNECTEDUDPMODE;
 			continue;
 		}
 		if (EQSTR(argv[i], "-l") || EQSTR(argv[i], "--list")) {
@@ -523,7 +525,7 @@ int	main(int argc, char **argv)
 
 	if (NPvd == 0) {
 		if (CreateSocket(
-				FlagUdp, FlagConnectedUdp,
+				ConnectionMode,
 				Sockets, &NSockets,
 				&sa6,
 				RemoteHost,
@@ -535,7 +537,7 @@ int	main(int argc, char **argv)
 	else {
 		for (i = 0; i < NPvd; i++) {
 			if (CreateSocket(
-					FlagUdp, FlagConnectedUdp,
+					ConnectionMode,
 					Sockets, &NSockets,
 					&sa6,
 					RemoteHost,
@@ -560,7 +562,7 @@ int	main(int argc, char **argv)
 		 * Send messages
 		 */
 		for (i = 0; i < NSockets; i++) {
-			if (FlagUdp) {
+			if (ConnectionMode == UDPMODE) {
 				if (sendto(
 					Sockets[i],
 					Msg, sizeof(INMSGSIZE),
@@ -570,7 +572,7 @@ int	main(int argc, char **argv)
 					Syscall = "sendto"; goto QuitAndClose;
 				}
 			} else
-			if (FlagConnectedUdp) {
+			if (ConnectionMode == CONNECTEDUDPMODE) {
 				if (send(Sockets[i],
 					 Msg, sizeof(INMSGSIZE), 0) == -1) {
 
@@ -591,7 +593,7 @@ int	main(int argc, char **argv)
 		for (i = 0; i < NSockets; i++) {
 			int	n;
 
-			if (FlagUdp) {
+			if (ConnectionMode != TCPMODE) {
 				if (recvfrom(
 					Sockets[i],
 					PeerName, sizeof(PeerName),
