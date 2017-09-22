@@ -45,14 +45,17 @@
  * going through router1
  */
 
+#define _GNU_SOURCE	// to have in6_pktinfo defined
+
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include <arpa/inet.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
 
 #include <libpvd.h>
 
@@ -109,6 +112,63 @@ static	void	usage(FILE *fo)
 }
 
 /*
+ * RecvUdpSocket : alternate implementation of recvfrom() to allow the receiver
+ * (here the server) to retrieve the destination address of the incoming
+ * datagram so that it can bind() its socket to this address for sending
+ * back its response
+ */
+static	int	RecvUdpSocket(
+			int s,
+			char *buf, int size,
+			struct sockaddr *sa, socklen_t *len)
+{
+	struct msghdr		msg;
+	struct cmsghdr		*cmsg;
+	struct iovec		iov;
+	struct in6_pktinfo	*pktinfo;
+	char			ancillary[64];	/* to receive the destination address */
+	char			DstAddress[64];
+	int			n;
+
+	iov.iov_base = buf;
+	iov.iov_len = size;
+
+	msg.msg_name = sa;
+	msg.msg_namelen = *len;
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = 1;
+	msg.msg_control = ancillary;
+	msg.msg_controllen = sizeof(ancillary);
+	msg.msg_flags = 0;
+
+	if ((n = recvmsg(s, &msg, 0)) == -1) {
+		return(-1);
+	}
+
+	for (cmsg = CMSG_FIRSTHDR(&msg); cmsg != NULL; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+		if (cmsg->cmsg_level != IPPROTO_IPV6 ||
+		    cmsg->cmsg_type != IPV6_PKTINFO) {
+			continue;
+		}
+		if (cmsg->cmsg_len != CMSG_LEN(sizeof(struct in6_pktinfo))) {
+			continue;
+		}
+		pktinfo = (struct in6_pktinfo *) CMSG_DATA(cmsg);
+
+		if (inet_ntop(AF_INET6, 
+			      &pktinfo->ipi6_addr,
+			      DstAddress, sizeof(DstAddress)) == NULL) {
+			continue;
+		}
+			      
+		printf("Receiving interface and addresses : %d, %s\n",
+			pktinfo->ipi6_ifindex,
+			DstAddress);
+	}
+	return(n);
+}
+
+/*
  * The server part : it listens for TCP and UDP connections.
  * It reads an incoming message, then sends back a message containing
  * the client's IPv6 address prefixed with the incoming message
@@ -122,10 +182,9 @@ static	int	RecvFromSocket(int s, int FlagUdp)
 	int		n;
 
 	if (FlagUdp) {
-		n = recvfrom(
+		n = RecvUdpSocket(
 			s,
 			Msg, sizeof(Msg),
-			0,
 			(struct sockaddr *) &sa6, &salen);
 	}
 	else {
@@ -185,7 +244,8 @@ static	int	Server(void)
 	sa6.sin6_port = htons(PORT);
 
 	/*
-	 * Create the TCP socket
+	 * Create the TCP socket (we dont mind closing the sockets
+	 * since returning error directly leads to exiting)
 	 */
 	if ((TCPSocket = socket(AF_INET6, SOCK_STREAM, 0)) == -1) {
 		perror("TCP socket");
@@ -194,24 +254,22 @@ static	int	Server(void)
 
 	if (setsockopt(TCPSocket, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one)) == -1) {
 		perror("SO_REUSEPORT");
-		close(TCPSocket);
 		return(-1);
 	}
 
 	if (bind(TCPSocket, (struct sockaddr *) &sa6, sizeof(sa6)) < 0) {
 		perror("TCP bind");
-		close(TCPSocket);
 		return(-1);
 	}
 
 	if (listen(TCPSocket, 10) == -1) {
 		perror("TCP listen");
-		close(TCPSocket);
 		return(-1);
 	}
 
 	/*
-	 * Idem for the UDP socket
+	 * Idem for the UDP socket. Configure it so that we can retrieve
+	 * the destination address of incoming datagrams
 	 */
 	if ((UDPSocket = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
 		perror("UDP socket");
@@ -220,13 +278,16 @@ static	int	Server(void)
 
 	if (setsockopt(UDPSocket, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one)) == -1) {
 		perror("SO_REUSEPORT");
-		close(UDPSocket);
 		return(-1);
 	}
 
 	if (bind(UDPSocket, (struct sockaddr *) &sa6, sizeof(sa6)) < 0) {
 		perror("UDP bind");
-		close(UDPSocket);
+		return(-1);
+	}
+ 
+	if (setsockopt(UDPSocket, IPPROTO_IPV6, IPV6_RECVPKTINFO, &one, sizeof(one)) == -1) {
+		fprintf(stderr, "setsockopt(IPV6_RECVPKTINFO): %s\n", strerror(errno));
 		return(-1);
 	}
 
