@@ -129,6 +129,7 @@ static	int	RecvUdpSocket(
 	char			ancillary[64];	/* to receive the destination address */
 	char			DstAddress[64];
 	int			n;
+	struct sockaddr_in6	sa6;
 
 	iov.iov_base = buf;
 	iov.iov_len = size;
@@ -164,6 +165,16 @@ static	int	RecvUdpSocket(
 		printf("Receiving interface and addresses : %d, %s\n",
 			pktinfo->ipi6_ifindex,
 			DstAddress);
+
+		/*
+		 * Binding to the destination address
+		 */
+		sa6.sin6_family = AF_INET6;
+		sa6.sin6_addr = pktinfo->ipi6_addr;
+		sa6.sin6_port = htons(PORT);
+		if (connect(s, (struct sockaddr *) &sa6, sizeof(sa6)) == -1) {
+			return(-1);
+		}
 	}
 	return(n);
 }
