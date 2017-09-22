@@ -105,7 +105,8 @@ where option :
         -c|--count <#> : loops counts (default 1)
         -i|--interval <#> : interval (in ms) between 2 loops (500 ms by default)
         -l|--list : print out the current pvd list
-        -u|--udp : client connects using UDP (TCP default)
+        -u|--udp : client uses connectionless UDP (TCP default)
+        -U|--UDP : client uses connected UDP (TCP default)
 
 Open a socket, bind it to a pvd and connect to server, them perform
 a send/receive loop (the server is sending the client's address to the
@@ -117,6 +118,9 @@ a pvd name means that no pvd will be attached to the associated socket
 If no option is specified, act as a server waiting for connection and
 displaying peer's address. Note that the server always listens for TCP
 and UDP connections
+
+'Connected UDP' means that the client is calling 'connect()' on the socket
+and 'send()' instead of 'sendto()' to send the data to the server
 
 Example :
 ./pvd-test-saddr -u -r ::1 -p pvd1.my.org -p pvd2.my.org -p none -c 10 -i 1200

@@ -81,7 +81,8 @@ static	void	usage(FILE *fo)
 	fprintf(fo, "\t-c|--count <#> : loops counts (default 1)\n");
 	fprintf(fo, "\t-i|--interval <#> : interval (in ms) between 2 loops (500 ms by default)\n");
 	fprintf(fo, "\t-l|--list : print out the current pvd list\n");
-	fprintf(fo, "\t-u|--udp : client connects using UDP (TCP default)\n");
+	fprintf(fo, "\t-u|--udp : client uses connectionless UDP (TCP default)\n");
+	fprintf(fo, "\t-U|--UDP : client uses connected UDP (TCP default)\n");
 	fprintf(fo, "\n");
 	fprintf(fo, "Open a socket, bind it to a pvd and connect to server, them perform\n");
 	fprintf(fo, "a send/receive loop (the server is sending the client's address to the\n");
@@ -93,6 +94,9 @@ static	void	usage(FILE *fo)
 	fprintf(fo, "If no option is specified, act as a server waiting for connection and\n");
 	fprintf(fo, "displaying peer's address. Note that the server always listens for TCP\n");
 	fprintf(fo, "and UDP connections\n");
+	fprintf(fo, "\n");
+	fprintf(fo, "'Connected UDP' means that the client is calling 'connect()' on the socket\n");
+	fprintf(fo, "and 'send()' instead of 'sendto()' to send the data to the server\n");
 	fprintf(fo, "\n");
 	fprintf(fo, "Example :\n");
 	fprintf(fo, "./pvd-test-saddr -u -r ::1 -p pvd1.my.org -p pvd2.my.org -p none -c 10 -i 1200\n");
@@ -314,6 +318,7 @@ static	void	CloseSockets(int Sockets[], int NSockets)
 
 static	int	CreateSocket(
 			int FlagUdp,
+			int FlagConnectedUdp,
 			int Sockets[],
 			int *NSockets,
 			struct sockaddr_in6 *ServerSa6,
@@ -342,16 +347,17 @@ static	int	CreateSocket(
 	}
 
 	/*
-	 * Establish a connection with the server in TCP mode
+	 * Establish a connection with the server in TCP mode or
+	 * in UDP mode when the -U flag has been specified
 	 */
-	if (! FlagUdp) {
+	if (! FlagUdp || FlagConnectedUdp) {
 		if (connect(s, (struct sockaddr *) ServerSa6, sizeof(*ServerSa6)) == -1) {
 			perror(ServerName);
 			close(s);
 			return(-1);
 		}
 		else {
-			printf("TCP connection with pvd %s OK\n", PvdName);
+			printf("Connection with pvd %s OK\n", PvdName);
 		}
 	}
 
@@ -377,6 +383,8 @@ int	main(int argc, char **argv)
 	int	Count = 1;
 	int	Interval = 500;
 	int	FlagUdp = false;
+	int	FlagConnectedUdp = false;
+	char	*Syscall;
 
 	char	*pt;
 
@@ -450,6 +458,10 @@ int	main(int argc, char **argv)
 			continue;
 		}
 
+		if (EQSTR(argv[i], "-U") || EQSTR(argv[i], "--UDP")) {
+			FlagConnectedUdp = true;
+			continue;
+		}
 		if (EQSTR(argv[i], "-l") || EQSTR(argv[i], "--list")) {
 			ShowPvdList = true;
 			continue;
@@ -511,7 +523,7 @@ int	main(int argc, char **argv)
 
 	if (NPvd == 0) {
 		if (CreateSocket(
-				FlagUdp, 
+				FlagUdp, FlagConnectedUdp,
 				Sockets, &NSockets,
 				&sa6,
 				RemoteHost,
@@ -523,7 +535,7 @@ int	main(int argc, char **argv)
 	else {
 		for (i = 0; i < NPvd; i++) {
 			if (CreateSocket(
-					FlagUdp, 
+					FlagUdp, FlagConnectedUdp,
 					Sockets, &NSockets,
 					&sa6,
 					RemoteHost,
@@ -555,17 +567,20 @@ int	main(int argc, char **argv)
 					0, 
 					(struct sockaddr *) &sa6, sizeof(sa6)) == -1) {
 
-					perror("sendto");
-					CloseSockets(Sockets, NSockets);
-					return(1);
+					Syscall = "sendto"; goto QuitAndClose;
+				}
+			} else
+			if (FlagConnectedUdp) {
+				if (send(Sockets[i],
+					 Msg, sizeof(INMSGSIZE), 0) == -1) {
+
+					Syscall = "send"; goto QuitAndClose;
 				}
 			}
 			else {
 				if (write(Sockets[i],
 					  Msg, strlen(Msg) + 1) == -1) {
-					perror("write");
-					CloseSockets(Sockets, NSockets);
-					return(1);
+					Syscall = "write"; goto QuitAndClose;
 				}
 			}
 		}
@@ -609,6 +624,11 @@ int	main(int argc, char **argv)
 	CloseSockets(Sockets, NSockets);
 
 	return(0);
+
+QuitAndClose :
+	perror(Syscall);
+	CloseSockets(Sockets, NSockets);
+	return(1);
 }
 
 /* ex: set ts=8 noexpandtab wrap: */
