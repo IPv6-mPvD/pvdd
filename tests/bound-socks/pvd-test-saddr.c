@@ -61,7 +61,7 @@
 #define	true	(1 == 1)
 #define	false	(1 == 0)
 
-#define	EQSTR(a, b)	(strcasecmp((a), (b)) == 0)
+#define	EQSTR(a, b)	(strcmp((a), (b)) == 0)
 
 #define	DIM(t)	(sizeof(t) / sizeof(t[0]))
 
@@ -333,6 +333,7 @@ static	int	CreateSocket(
 	if ((s = socket(AF_INET6,
 			ConnectionMode != TCPMODE ? SOCK_DGRAM : SOCK_STREAM,
 			ConnectionMode != TCPMODE ? IPPROTO_UDP : 0)) == -1) {
+		perror("socket");
 		return(-1);
 	}
 
@@ -459,7 +460,6 @@ int	main(int argc, char **argv)
 			ConnectionMode = UDPMODE;
 			continue;
 		}
-
 		if (EQSTR(argv[i], "-U") || EQSTR(argv[i], "--UDP")) {
 			ConnectionMode = CONNECTEDUDPMODE;
 			continue;
@@ -485,6 +485,9 @@ int	main(int argc, char **argv)
 	}
 
 	printf("Starting test with %d loops at interval %d ms\n", Count, Interval);
+	printf("%s mode activated\n",
+		ConnectionMode == UDPMODE ? "UDP" :
+		ConnectionMode == CONNECTEDUDPMODE ? "CONNECTED UDP" : "TCP");
 
 	if (ShowPvdList) {
 		struct pvd_list pvl;
