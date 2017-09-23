@@ -113,6 +113,54 @@ static	void	usage(FILE *fo)
 }
 
 /*
+ * LookupSrcAddr : the server wants to reply to UDP datagram using the
+ * same address the client's datagram has been received on. For this,
+ * we create a cache of sockets, each attached to a different source
+ * address. These sockets will be used for replies
+ */
+static	int	LookupSrcAddr(struct in6_addr *sin6)
+{
+	static	int	lNSockets = 0;
+	static	struct {
+		int		sock;
+		struct in6_addr sin6;
+	}	lTabSockets[16];
+
+	int			i;
+	int			sock;
+	struct sockaddr_in6	sa6;
+
+	for (i = 0; i < lNSockets; i++) {
+		if (memcmp(&lTabSockets[i].sin6, sin6, sizeof(*sin6)) == 0) {
+			return(lTabSockets[i].sock);
+		}
+	}
+	if (lNSockets >= DIM(lTabSockets)) {
+		return(-1);
+	}
+
+	/*
+	 * Create and configure the return socket
+	 */
+	if ((sock = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
+		return(-1);
+	}
+
+	sa6.sin6_family = AF_INET6;
+	sa6.sin6_addr = *sin6;
+	sa6.sin6_port = htons(0);
+	if (bind(sock, (struct sockaddr *) &sa6, sizeof(sa6)) == -1) {
+		return(-1);
+	}
+	lTabSockets[lNSockets].sin6 = *sin6;
+	lTabSockets[lNSockets].sock = sock;
+
+	lNSockets++;
+
+	return(sock);
+}
+
+/*
  * RecvUdpSocket : alternate implementation of recvfrom() to allow the receiver
  * (here the server) to retrieve the destination address of the incoming
  * datagram so that we can create a dedicated UDP socket connected to the client
@@ -122,7 +170,7 @@ static	int	RecvUdpSocket(
 			int sock,
 			char *buf, int size,
 			struct sockaddr *sa, socklen_t *len,
-			int *ReturnSocket)
+			int *ReturnSock)
 {
 	struct msghdr		msg;
 	struct cmsghdr		*cmsg;
@@ -131,7 +179,6 @@ static	int	RecvUdpSocket(
 	char			ancillary[64];	/* to receive the destination address */
 	char			DstAddress[64];
 	int			n;
-	struct sockaddr_in6	sa6;
 
 	iov.iov_base = buf;
 	iov.iov_len = size;
@@ -164,24 +211,15 @@ static	int	RecvUdpSocket(
 			continue;
 		}
 			      
+#if	0
 		printf("Receiving interface and addresses : %d, %s\n",
 			pktinfo->ipi6_ifindex,
 			DstAddress);
+#endif
 
-		/*
-		 * Create and configure the return socket
-		 */
-		if ((sock = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
+		if ((*ReturnSock = LookupSrcAddr(&pktinfo->ipi6_addr)) == -1) {
 			return(-1);
 		}
-
-		sa6.sin6_family = AF_INET6;
-		sa6.sin6_addr = pktinfo->ipi6_addr;
-		sa6.sin6_port = htons(0);
-		if (bind(sock, (struct sockaddr *) &sa6, sizeof(sa6)) == -1) {
-			return(-1);
-		}
-		*ReturnSocket = sock;
 	}
 	return(n);
 }
@@ -232,11 +270,6 @@ static	int	RecvFromSocket(int s, int FlagUdp)
 				   (struct sockaddr *) &sa6, sizeof(sa6)) == -1) {
 				perror("sendto");
 				return(-1);
-			}
-			if (ReturnSock != s) {
-				printf("Closing new socket\n");
-				shutdown(ReturnSock, SHUT_RDWR);
-				close(ReturnSock);
 			}
 		}
 	}
@@ -568,11 +601,6 @@ int	main(int argc, char **argv)
 		Interval = 100;
 	}
 
-	printf("Starting test with %d loops at interval %d ms\n", Count, Interval);
-	printf("%s mode activated\n",
-		ConnectionMode == UDPMODE ? "UDP" :
-		ConnectionMode == CONNECTEDUDPMODE ? "CONNECTED UDP" : "TCP");
-
 	if (ShowPvdList) {
 		struct pvd_list pvl;
 
@@ -587,6 +615,13 @@ int	main(int argc, char **argv)
 			perror("kernel_get_pvdlist");
 		}
 		return(1);
+	}
+
+	if (RemoteHost != NULL) {
+		printf("Starting test with %d loops at interval %d ms\n", Count, Interval);
+		printf("%s mode activated\n",
+			ConnectionMode == UDPMODE ? "UDP" :
+			ConnectionMode == CONNECTEDUDPMODE ? "CONNECTED UDP" : "TCP");
 	}
 
 	if (RemoteHost == NULL) {
