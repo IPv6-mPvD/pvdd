@@ -89,6 +89,7 @@ static	void	usage(FILE *fo)
 	fprintf(fo, "\t-c|--count <#> : loops counts (default 1)\n");
 	fprintf(fo, "\t-i|--interval <#> : interval (in ms) between 2 loops (500 ms by default)\n");
 	fprintf(fo, "\t-l|--list : print out the current pvd list\n");
+	fprintf(fo, "\t-t|--tcp : client TCP connection (default)\n");
 	fprintf(fo, "\t-u|--udp : client uses connectionless UDP (TCP default)\n");
 	fprintf(fo, "\t-U|--UDP : client uses connected UDP (TCP default)\n");
 	fprintf(fo, "\n");
@@ -108,9 +109,11 @@ static	void	usage(FILE *fo)
 	fprintf(fo, "\n");
 	fprintf(fo, "Example :\n");
 	fprintf(fo, "./pvd-test-saddr -u -r ::1 -p pvd1.my.org -p pvd2.my.org -p none -c 10 -i 1200\n");
-	fprintf(fo, "This creates 3 UDP connection with the server (on localhost) and performs 10\n");
+	fprintf(fo, "This creates 3 UDP connections with the server (on localhost) and performs 10\n");
 	fprintf(fo, "send/receive loops, each separated by 1.2 seconds\n");
 }
+
+/* Server part ------------------------------------------- */
 
 /*
  * LookupSrcAddr : the server wants to reply to UDP datagram using the
@@ -136,6 +139,7 @@ static	int	LookupSrcAddr(struct in6_addr *sin6)
 		}
 	}
 	if (lNSockets >= DIM(lTabSockets)) {
+		errno = ENOSPC;
 		return(-1);
 	}
 
@@ -148,7 +152,7 @@ static	int	LookupSrcAddr(struct in6_addr *sin6)
 
 	sa6.sin6_family = AF_INET6;
 	sa6.sin6_addr = *sin6;
-	sa6.sin6_port = htons(0);
+	sa6.sin6_port = htons(0);	/* pickup an available port */
 	if (bind(sock, (struct sockaddr *) &sa6, sizeof(sa6)) == -1) {
 		return(-1);
 	}
@@ -170,7 +174,7 @@ static	int	RecvUdpSocket(
 			int sock,
 			char *buf, int size,
 			struct sockaddr *sa, socklen_t *len,
-			int *ReturnSock)
+			int *ResponseSock)
 {
 	struct msghdr		msg;
 	struct cmsghdr		*cmsg;
@@ -217,18 +221,13 @@ static	int	RecvUdpSocket(
 			DstAddress);
 #endif
 
-		if ((*ReturnSock = LookupSrcAddr(&pktinfo->ipi6_addr)) == -1) {
+		if ((*ResponseSock = LookupSrcAddr(&pktinfo->ipi6_addr)) == -1) {
 			return(-1);
 		}
 	}
 	return(n);
 }
 
-/*
- * The server part : it listens for TCP and UDP connections.
- * It reads an incoming message, then sends back a message containing
- * the client's IPv6 address prefixed with the incoming message
- */
 static	int	RecvFromSocket(int s, int FlagUdp)
 {
 	struct sockaddr_in6 sa6;
@@ -236,14 +235,19 @@ static	int	RecvFromSocket(int s, int FlagUdp)
 	char		PeerName[PEERNAMESIZE];
 	char		Msg[INMSGSIZE];
 	int		n;
-	int		ReturnSock = s;
+	int		ResponseSock = s;
 
+	/*
+	 * We first retrieve the incoming message (don't bother with
+	 * partial messages right now, as the incoming messages are
+	 * very short in size)
+	 */
 	if (FlagUdp) {
 		n = RecvUdpSocket(
 			s,
 			Msg, sizeof(Msg),
 			(struct sockaddr *) &sa6, &salen,
-			&ReturnSock);
+			&ResponseSock);
 	}
 	else {
 		if (getpeername(s, (struct sockaddr *) &sa6, &salen) == -1) {
@@ -253,6 +257,10 @@ static	int	RecvFromSocket(int s, int FlagUdp)
 		n = recv(s, Msg, sizeof(Msg), 0);
 	}
 
+	/*
+	 * Send back the response to the client, using the incoming remote
+	 * sockaddr_in6 structure and the response socket
+	 */
 	if (n > 0) {
 		sprintf(PeerName, "%s : ", Msg);
 
@@ -264,7 +272,7 @@ static	int	RecvFromSocket(int s, int FlagUdp)
 		}
 		else {
 			printf("%s : %s\n", FlagUdp ? "UDP" : "TCP", PeerName);
-			if (sendto(ReturnSock,
+			if (sendto(ResponseSock,
 				   PeerName, sizeof(PeerName),
 				   0, 
 				   (struct sockaddr *) &sa6, sizeof(sa6)) == -1) {
@@ -285,6 +293,11 @@ static	int	RecvFromSocket(int s, int FlagUdp)
 	return(0);
 }
 
+/*
+ * The server main loop : it listens for TCP and UDP connections.
+ * It reads an incoming message, then sends back a message containing
+ * the client's IPv6 address prefixed with the incoming message
+ */
 static	int	Server(void)
 {
 	int	i, j;
@@ -339,16 +352,16 @@ static	int	Server(void)
 		return(-1);
 	}
 
-	if (bind(UDPSocket, (struct sockaddr *) &sa6, sizeof(sa6)) < 0) {
-		perror("UDP bind");
-		return(-1);
-	}
- 
 	if (setsockopt(UDPSocket, IPPROTO_IPV6, IPV6_RECVPKTINFO, &one, sizeof(one)) == -1) {
 		fprintf(stderr, "setsockopt(IPV6_RECVPKTINFO): %s\n", strerror(errno));
 		return(-1);
 	}
 
+	if (bind(UDPSocket, (struct sockaddr *) &sa6, sizeof(sa6)) < 0) {
+		perror("UDP bind");
+		return(-1);
+	}
+ 
 	/*
 	 * Main loop : we wait for messages coming on the UDP, TCP server sockets,
 	 * as well as on the TCP clients sockets
@@ -427,6 +440,8 @@ static	int	Server(void)
 	}
 }
 
+
+/* Clients part ------------------------------------------- */
 
 static	void	CloseSockets(int Sockets[], int NSockets)
 {
@@ -571,6 +586,10 @@ int	main(int argc, char **argv)
 				usage(stderr);
 				return(-1);
 			}
+			continue;
+		}
+		if (EQSTR(argv[i], "-t") || EQSTR(argv[i], "--tcp")) {
+			ConnectionMode = TCPMODE;
 			continue;
 		}
 		if (EQSTR(argv[i], "-u") || EQSTR(argv[i], "--udp")) {
