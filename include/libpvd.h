@@ -156,6 +156,9 @@ extern	int		pvd_get_message(t_pvd_connection *conn, int *multiLines, char **msg)
  */
 extern	int	sock_bind_to_pvd(int s, char *pvdname);
 extern	int	sock_get_bound_pvd(int s, char *pvdname);
+extern	int	proc_bind_to_pvd(char *pvdname);
+extern	int	proc_bind_to_nopvd(void);
+extern	int	proc_ignore_bind_to_pvd(void);
 extern	int	kernel_get_pvdlist(struct pvd_list *pvl);
 extern	int	kernel_get_pvd_attributes(char *pvdname, struct net_pvd_attribute *attr);
 extern	int	kernel_create_pvd(char *pvdname);

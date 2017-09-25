@@ -880,6 +880,68 @@ int	sock_get_bound_pvd(int s, char *pvdname)
 	return(rc);
 }
 
+int	proc_bind_to_pvd(char *pvdname)
+{
+	struct bind_to_pvd	btp, *pbtp = &btp;
+	int			rc;
+	int			s;
+
+	if ((s = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+		return(-1);
+	}
+
+	btp.scope = PVD_BIND_SCOPE_PROCESS;
+	btp.npvd = 1;
+	btp.pvdnames[0][PVDNAMSIZ - 1] = '\0';
+	strncpy(btp.pvdnames[0], pvdname, PVDNAMSIZ- 1);
+
+	rc = setsockopt(s, SOL_SOCKET, SO_BINDPROCTOPVD, &pbtp, sizeof(pbtp));
+
+	close(s);
+
+	return(rc);
+}
+
+int	proc_bind_to_nopvd(void)
+{
+	struct bind_to_pvd	btp, *pbtp = &btp;
+	int			rc;
+	int			s;
+
+	if ((s = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+		return(-1);
+	}
+
+	btp.scope = PVD_BIND_SCOPE_PROCESS;
+	btp.npvd = 0;
+
+	rc = setsockopt(s, SOL_SOCKET, SO_BINDPROCTOPVD, &pbtp, sizeof(pbtp));
+
+	close(s);
+
+	return(rc);
+}
+
+int	proc_ignore_bind_to_pvd(void)
+{
+	struct bind_to_pvd	btp, *pbtp = &btp;
+	int			rc;
+	int			s;
+
+	if ((s = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+		return(-1);
+	}
+
+	btp.scope = PVD_BIND_SCOPE_PROCESS;
+	btp.npvd = -1;
+
+	rc = setsockopt(s, SOL_SOCKET, SO_BINDPROCTOPVD, &pbtp, sizeof(pbtp));
+
+	close(s);
+
+	return(rc);
+}
+
 int	kernel_get_pvdlist(struct pvd_list *pvl)
 {
 	int		s;
