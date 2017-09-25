@@ -84,10 +84,11 @@ static	void	usage(FILE *fo)
 {
 	fprintf(fo, "usage : pvd-test-saddr [-h|--help] [<option>*]\n");
 	fprintf(fo, "where option :\n");
-	fprintf(fo, "\t-r|--remote <h:o:s:t:-:I:P:v:6> : IPv6 dotted address of the server\n");
-	fprintf(fo, "\t-p|--pvd <pvdname> : selected pvd (optional)\n");
+	fprintf(fo, "\t-r|--remote <h:o:s:t:I:P:v:6> : IPv6 dotted address of the server\n");
+	fprintf(fo, "\t-P|--process : specify one pvd to bind to at the process level\n");
+	fprintf(fo, "\t-p|--pvd <pvdname> : selected pvd (optional, can be repeated)\n");
 	fprintf(fo, "\t-c|--count <#> : loops counts (default 1)\n");
-	fprintf(fo, "\t-i|--interval <#> : interval (in ms) between 2 loops (500 ms by default)\n");
+	fprintf(fo, "\t-i|--interval <#> : interval (in ms) between loops (500 ms by default)\n");
 	fprintf(fo, "\t-l|--list : print out the current pvd list\n");
 	fprintf(fo, "\t-t|--tcp : client TCP connection (default)\n");
 	fprintf(fo, "\t-u|--udp : client uses connectionless UDP (TCP default)\n");
@@ -105,7 +106,10 @@ static	void	usage(FILE *fo)
 	fprintf(fo, "and UDP connections\n");
 	fprintf(fo, "\n");
 	fprintf(fo, "'Connected UDP' means that the client is calling 'connect()' on the socket\n");
-	fprintf(fo, "and 'send()' instead of 'sendto()' to send the data to the server\n");
+	fprintf(fo, "and 'send()' instead of 'sendto()' to send the data to the server.\n");
+	fprintf(fo, "Due to the meaning of calling connect() for UDP (UDP being connection-less\n");
+	fprintf(fo, "by nature), return packets are dropped by the client. So, for now, this mode\n");
+	fprintf(fo, "is mostly useless and may be removed in the future\n");
 	fprintf(fo, "\n");
 	fprintf(fo, "Example :\n");
 	fprintf(fo, "./pvd-test-saddr -u -r ::1 -p pvd1.my.org -p pvd2.my.org -p none -c 10 -i 1200\n");
@@ -516,6 +520,7 @@ int	main(int argc, char **argv)
 	socklen_t	OtherSa6Len;
 	char	PeerName[PEERNAMESIZE];
 	int	ShowPvdList = false;
+	int	ProcessLevel = false;
 	int	Count = 1;
 	int	Interval = 500;
 	int	ConnectionMode = TCPMODE;
@@ -588,6 +593,10 @@ int	main(int argc, char **argv)
 			}
 			continue;
 		}
+		if (EQSTR(argv[i], "-P") || EQSTR(argv[i], "--process")) {
+			ProcessLevel = true;
+			continue;
+		}
 		if (EQSTR(argv[i], "-t") || EQSTR(argv[i], "--tcp")) {
 			ConnectionMode = TCPMODE;
 			continue;
@@ -647,6 +656,29 @@ int	main(int argc, char **argv)
 		printf("Starting in server mode (port = %d)\n", PORT);
 		Server();
 		return(0);
+	}
+
+	if (ProcessLevel) {
+		/*
+		 * Select the 1st specified pvd, if any
+		 */
+		if (NPvd == 0 || EQSTR(PvdName[0], "none")) {
+			if (proc_bind_to_nopvd() != 0) {
+				perror("proc_bind_to_nopvd");
+				return(1);
+			}
+		}
+		else {
+			if (proc_bind_to_pvd(PvdName[0]) != 0) {
+				perror("proc_bind_to_pvd");
+				return(1);
+			}
+		}
+		/*
+		 * Pretend that we have no pvd, so that socket creation
+		 * will not bind to any pvd
+		 */
+		NPvd = 0;
 	}
 
 	/*
