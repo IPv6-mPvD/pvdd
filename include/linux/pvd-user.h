@@ -103,16 +103,20 @@ struct pvd_attr {
 /*
  * For SO_BINDTOPVD (set and get)
  */
-#define	MAXBOUNDPVD	32	/* 1 practically after discussions */
-
 #define	PVD_BIND_SCOPE_SOCKET	0
 #define	PVD_BIND_SCOPE_THREAD	1
 #define	PVD_BIND_SCOPE_PROCESS	2
 
 struct bind_to_pvd {
 	int scope;
-	int npvd;	/* in/out */
-	char pvdnames[MAXBOUNDPVD][PVDNAMSIZ];
+	/*
+	 * npvd : in
+	 * -1 : inherit
+	 *  0 : forcibly unset
+	 *  1 : forcibly set
+	 */
+	int npvd;
+	char pvdname[PVDNAMSIZ];
 };
 
 /*

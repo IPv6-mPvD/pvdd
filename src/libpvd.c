@@ -856,8 +856,28 @@ int	sock_bind_to_pvd(int s, char *pvdname)
 
 	btp.scope = PVD_BIND_SCOPE_SOCKET;
 	btp.npvd = 1;
-	btp.pvdnames[0][PVDNAMSIZ - 1] = '\0';
-	strncpy(btp.pvdnames[0], pvdname, PVDNAMSIZ- 1);
+	btp.pvdname[PVDNAMSIZ - 1] = '\0';
+	strncpy(btp.pvdname, pvdname, PVDNAMSIZ- 1);
+
+	return(setsockopt(s, SOL_SOCKET, SO_BINDTOPVD, &pbtp, sizeof(pbtp)));
+}
+
+int	sock_bind_to_nopvd(int s)
+{
+	struct bind_to_pvd	btp, *pbtp = &btp;
+
+	btp.scope = PVD_BIND_SCOPE_SOCKET;
+	btp.npvd = 0;
+
+	return(setsockopt(s, SOL_SOCKET, SO_BINDTOPVD, &pbtp, sizeof(pbtp)));
+}
+
+int	sock_inherit_bound_pvd(int s)
+{
+	struct bind_to_pvd	btp, *pbtp = &btp;
+
+	btp.scope = PVD_BIND_SCOPE_SOCKET;
+	btp.npvd = -1;
 
 	return(setsockopt(s, SOL_SOCKET, SO_BINDTOPVD, &pbtp, sizeof(pbtp)));
 }
@@ -869,10 +889,9 @@ int	sock_get_bound_pvd(int s, char *pvdname)
 	int rc;
 
 	btp.scope = PVD_BIND_SCOPE_SOCKET;
-	btp.npvd = 1;
 	if ((rc = getsockopt(s, SOL_SOCKET, SO_BINDTOPVD, &pbtp, &optlen)) == 0) {
 		if (btp.npvd == 1) {
-			strncpy(pvdname, btp.pvdnames[0], PVDNAMSIZ - 1);
+			strncpy(pvdname, btp.pvdname, PVDNAMSIZ - 1);
 			pvdname[PVDNAMSIZ - 1] = '\0';
 		}
 		return(btp.npvd);
@@ -880,7 +899,7 @@ int	sock_get_bound_pvd(int s, char *pvdname)
 	return(rc);
 }
 
-int	proc_bind_to_pvd(char *pvdname)
+static int _proc_bind_to_pvd(char *pvdname, int scope)
 {
 	struct bind_to_pvd	btp, *pbtp = &btp;
 	int			rc;
@@ -890,12 +909,42 @@ int	proc_bind_to_pvd(char *pvdname)
 		return(-1);
 	}
 
-	btp.scope = PVD_BIND_SCOPE_PROCESS;
+	btp.scope = scope;
 	btp.npvd = 1;
-	btp.pvdnames[0][PVDNAMSIZ - 1] = '\0';
-	strncpy(btp.pvdnames[0], pvdname, PVDNAMSIZ- 1);
+	btp.pvdname[PVDNAMSIZ - 1] = '\0';
+	strncpy(btp.pvdname, pvdname, PVDNAMSIZ- 1);
 
-	rc = setsockopt(s, SOL_SOCKET, SO_BINDPROCTOPVD, &pbtp, sizeof(pbtp));
+	rc = setsockopt(s, SOL_SOCKET, SO_BINDTOPVD, &pbtp, sizeof(pbtp));
+
+	close(s);
+
+	return(rc);
+}
+
+int	proc_bind_to_pvd(char *pvdname)
+{
+	return(_proc_bind_to_pvd(pvdname, PVD_BIND_SCOPE_PROCESS));
+}
+
+int	thread_bind_to_pvd(char *pvdname)
+{
+	return(_proc_bind_to_pvd(pvdname, PVD_BIND_SCOPE_THREAD));
+}
+
+static int _proc_bind_to_nopvd(int scope)
+{
+	struct bind_to_pvd	btp, *pbtp = &btp;
+	int			rc;
+	int			s;
+
+	if ((s = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+		return(-1);
+	}
+
+	btp.scope = scope;
+	btp.npvd = 0;
+
+	rc = setsockopt(s, SOL_SOCKET, SO_BINDTOPVD, &pbtp, sizeof(pbtp));
 
 	close(s);
 
@@ -904,25 +953,15 @@ int	proc_bind_to_pvd(char *pvdname)
 
 int	proc_bind_to_nopvd(void)
 {
-	struct bind_to_pvd	btp, *pbtp = &btp;
-	int			rc;
-	int			s;
-
-	if ((s = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-		return(-1);
-	}
-
-	btp.scope = PVD_BIND_SCOPE_PROCESS;
-	btp.npvd = 0;
-
-	rc = setsockopt(s, SOL_SOCKET, SO_BINDPROCTOPVD, &pbtp, sizeof(pbtp));
-
-	close(s);
-
-	return(rc);
+	return(_proc_bind_to_nopvd(PVD_BIND_SCOPE_PROCESS));
 }
 
-int	proc_ignore_bind_to_pvd(void)
+int	thread_bind_to_nopvd(void)
+{
+	return(_proc_bind_to_nopvd(PVD_BIND_SCOPE_THREAD));
+}
+
+static int _proc_inherit_bound_pvd(int scope)
 {
 	struct bind_to_pvd	btp, *pbtp = &btp;
 	int			rc;
@@ -932,14 +971,59 @@ int	proc_ignore_bind_to_pvd(void)
 		return(-1);
 	}
 
-	btp.scope = PVD_BIND_SCOPE_PROCESS;
+	btp.scope = scope;
 	btp.npvd = -1;
 
-	rc = setsockopt(s, SOL_SOCKET, SO_BINDPROCTOPVD, &pbtp, sizeof(pbtp));
+	rc = setsockopt(s, SOL_SOCKET, SO_BINDTOPVD, &pbtp, sizeof(pbtp));
 
 	close(s);
 
 	return(rc);
+}
+
+int	proc_inherit_bound_pvd(void)
+{
+	return(_proc_inherit_bound_pvd(PVD_BIND_SCOPE_PROCESS));
+}
+
+int	thread_inherit_bound_pvd(void)
+{
+	return(_proc_inherit_bound_pvd(PVD_BIND_SCOPE_THREAD));
+}
+
+static int _proc_get_bound_pvd(char *pvdname, int scope)
+{
+	struct bind_to_pvd	btp, *pbtp = &btp;
+	socklen_t optlen = sizeof(pbtp);
+	int rc;
+	int s;
+
+	if ((s = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+		return(-1);
+	}
+
+	btp.scope = scope;
+	if ((rc = getsockopt(s, SOL_SOCKET, SO_BINDTOPVD, &pbtp, &optlen)) == 0) {
+		if (btp.npvd == 1) {
+			strncpy(pvdname, btp.pvdname, PVDNAMSIZ - 1);
+			pvdname[PVDNAMSIZ - 1] = '\0';
+		}
+		rc = btp.npvd;
+	}
+
+	close(s);
+
+	return(rc);
+}
+
+int	proc_get_bound_pvd(char *pvdname)
+{
+	return(_proc_get_bound_pvd(pvdname, PVD_BIND_SCOPE_PROCESS));
+}
+
+int	thread_get_bound_pvd(char *pvdname)
+{
+	return(_proc_get_bound_pvd(pvdname, PVD_BIND_SCOPE_THREAD));
 }
 
 int	kernel_get_pvdlist(struct pvd_list *pvl)
