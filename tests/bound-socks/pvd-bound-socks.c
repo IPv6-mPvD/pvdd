@@ -99,6 +99,25 @@ int	main(int argc, char **argv)
 		else {
 			printf("Process bound to pvd %s\n", BoundPvdName);
 		}
+		/*
+		 * Create a socket, do not bind it, and check for its binding
+		 * (should be the process one)
+		 */
+		if ((s = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+			perror("socket");
+			return(1);
+		}
+		if ((rc = sock_get_bound_pvd(s, BoundPvdName)) == -1) {
+			perror("sock_get_bound_pvd");
+			close(s);
+			return(1);
+		}
+
+		if (rc == 0) {
+			printf("Socket bound to no pvd\n");
+		} else {
+			printf("Socket bound to pvd %s\n", BoundPvdName);
+		}
 		return(0);
 	}
 
