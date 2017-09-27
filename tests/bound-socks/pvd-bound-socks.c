@@ -182,7 +182,7 @@ int	main(int argc, char **argv)
 	/*
 	 * Read back the bound pvd
 	 */
-	ShowPvd(s, "Forced to 1st pvd");
+	ShowPvd(s, FlagPvd ? "Forced to 1st pvd" : "Force to no pvd");
 
 	close(s);
 
