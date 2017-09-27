@@ -37,11 +37,22 @@
 
 static	void	usage(FILE *fo)
 {
-	fprintf(fo, "usage : pvd-bound-socks [-h|--help] [-P|--process] [<pvdname> [<pvdname2>]]\n");
+	fprintf(fo, "usage : pvd-bound-socks [-h|--help] [<option>*]\n");
+	fprintf(fo, "where option :\n");
+	fprintf(fo, "\t-l|--list : print out the current pvd list\n");
+	fprintf(fo, "\t-P|--process : bind the process to a pvd\n");
+	fprintf(fo, "\t<pvdname> : first pvd name to bind to (socket/process scope)\n");
+	fprintf(fo, "\t<pvdname2>: 2nd pvd name to bind the socket to in process scope\n");
 	fprintf(fo, "\n");
+	fprintf(fo, "In socket scope (default) :\n");
 	fprintf(fo, "Open a socket, bind it to a pvd and retrieve the current ");
 	fprintf(fo, "bound pvd set\n");
 	fprintf(fo, "If pvdname == none or unspecified, no binding is done\n");
+	fprintf(fo, "\n");
+	fprintf(fo, "In process scope (-P option) :\n");
+	fprintf(fo, "Bind the process to <pvdname>, retrieve its bound pvd,\n");
+	fprintf(fo, "then create a socket and perform various binding operations\n");
+	fprintf(fo, "to check how any bound pvd is inherited or not\n");
 }
 
 static	int	ShowPvd(int s, char *msg)
@@ -68,6 +79,7 @@ int	main(int argc, char **argv)
 	int	i;
 	int	s;
 	int	FlagProcess = false;
+	int	FlagListPvd = false;
 	int	FlagPvd = true;
 	char	*PvdName = NULL;
 	char	*PvdName2 = NULL;
@@ -77,6 +89,10 @@ int	main(int argc, char **argv)
 		if (EQSTR(argv[i], "-h") || EQSTR(argv[i], "--help")) {
 			usage(stdout);
 			return(0);
+		}
+		if (EQSTR(argv[i], "-l") || EQSTR(argv[i], "--list")) {
+			FlagListPvd = true;
+			continue;
 		}
 		if (EQSTR(argv[i], "-P") || EQSTR(argv[i], "--process")) {
 			FlagProcess = true;
@@ -88,6 +104,27 @@ int	main(int argc, char **argv)
 		else {
 			PvdName2 = argv[i];
 		}
+	}
+
+	if (proc_get_bound_pvd(BoundPvdName) == -1 && errno == ENOPROTOOPT) {
+		fprintf(stderr, "Kernel is lacking pvd support. Aborting...\n");
+		return(1);
+	}
+
+	if (FlagListPvd) {
+		struct pvd_list pvl;
+
+		pvl.npvd = MAXPVD;
+		if (kernel_get_pvdlist(&pvl) != -1) {
+			printf("Pvd list : %d pvds\n", pvl.npvd);
+			for (i = 0; i < pvl.npvd; i++) {
+				printf("\t%s\n", pvl.pvds[i]);
+			}
+		}
+		else {
+			perror("kernel_get_pvdlist");
+		}
+		return(0);
 	}
 
 	if (PvdName == NULL || EQSTR(PvdName, "none")) {
@@ -157,6 +194,17 @@ int	main(int argc, char **argv)
 			if (ShowPvd(s, "Force to 2nd pvd") == -1) {
 				return(1);
 			}
+		}
+
+		/*
+		 * Lastly, let the socket inherit of any bound pvd
+		 */
+		if (sock_inherit_bound_pvd(s) == -1) {
+			perror("sock_inherit_bound_pvd");
+			return(1);
+		}
+		if (ShowPvd(s, "Inherit") == -1) {
+			return(1);
 		}
 		return(0);
 	}
