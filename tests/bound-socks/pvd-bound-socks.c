@@ -107,7 +107,7 @@ int	main(int argc, char **argv)
 			perror("socket");
 			return(1);
 		}
-		if ((rc = sock_get_bound_pvd(s, BoundPvdName)) == -1) {
+		if ((rc = sock_get_bound_pvd_relaxed(s, BoundPvdName)) == -1) {
 			perror("sock_get_bound_pvd");
 			close(s);
 			return(1);
