@@ -885,10 +885,27 @@ int	sock_inherit_bound_pvd(int s)
 int	sock_get_bound_pvd(int s, char *pvdname)
 {
 	struct bind_to_pvd	btp, *pbtp = &btp;
-	socklen_t optlen = sizeof(pbtp);
-	int rc;
+	socklen_t		optlen = sizeof(pbtp);
+	int			rc;
 
 	btp.scope = PVD_BIND_SCOPE_SOCKET;
+	if ((rc = getsockopt(s, SOL_SOCKET, SO_BINDTOPVD, &pbtp, &optlen)) == 0) {
+		if (btp.npvd == 1) {
+			strncpy(pvdname, btp.pvdname, PVDNAMSIZ - 1);
+			pvdname[PVDNAMSIZ - 1] = '\0';
+		}
+		return(btp.npvd);
+	}
+	return(rc);
+}
+
+int	sock_get_bound_pvd_relaxed(int s, char *pvdname)
+{
+	struct bind_to_pvd	btp, *pbtp = &btp;
+	socklen_t		optlen = sizeof(pbtp);
+	int			rc;
+
+	btp.scope = -1;
 	if ((rc = getsockopt(s, SOL_SOCKET, SO_BINDTOPVD, &pbtp, &optlen)) == 0) {
 		if (btp.npvd == 1) {
 			strncpy(pvdname, btp.pvdname, PVDNAMSIZ - 1);

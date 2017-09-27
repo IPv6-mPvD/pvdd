@@ -158,6 +158,7 @@ extern	int	sock_bind_to_pvd(int s, char *pvdname);
 extern	int	sock_bind_to_nopvd(int s);
 extern	int	sock_inherit_bound_pvd(int s);
 extern	int	sock_get_bound_pvd(int s, char *pvdname);
+extern	int	sock_get_bound_pvd_relaxed(int s, char *pvdname);
 
 extern	int	proc_bind_to_pvd(char *pvdname);
 extern	int	proc_bind_to_nopvd(void);
