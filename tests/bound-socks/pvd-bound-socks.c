@@ -28,14 +28,20 @@
 
 #include <libpvd.h>
 
-#define	EQSTR(a, b)	(strcasecmp((a), (b)) == 0)
+#define	EQSTR(a, b)	(strcmp((a), (b)) == 0)
+
+#undef	true
+#undef	false
+#define	true	(1 == 1)
+#define	false	(1 == 0)
 
 static	void	usage(FILE *fo)
 {
-	fprintf(fo, "usage : pvd-bound-socks [-h|--help] [<pvdname>]\n");
+	fprintf(fo, "usage : pvd-bound-socks [-h|--help] [-P|--process] [<pvdname>]\n");
 	fprintf(fo, "\n");
 	fprintf(fo, "Open a socket, bind it to a pvd and retrieve the current ");
 	fprintf(fo, "bound pvd set\n");
+	fprintf(fo, "If pvdname == none or unspecified, no binding is done\n");
 }
 
 int	main(int argc, char **argv)
@@ -43,6 +49,8 @@ int	main(int argc, char **argv)
 	int	rc;
 	int	i;
 	int	s;
+	int	FlagProcess = false;
+	int	FlagPvd = true;
 	char	*PvdName = NULL;
 	char	BoundPvdName[PVDNAMSIZ];
 
@@ -51,35 +59,80 @@ int	main(int argc, char **argv)
 			usage(stdout);
 			return(0);
 		}
+		if (EQSTR(argv[i], "-P") || EQSTR(argv[i], "--process")) {
+			FlagProcess = true;
+			continue;
+		}
 		PvdName = argv[i];
 	}
 
-	if (PvdName == NULL) {
-		usage(stderr);
-		return(1);
+	if (PvdName == NULL || EQSTR(PvdName, "none")) {
+		FlagPvd = false;
+	}
+	else {
+		FlagPvd = true;
 	}
 
+	/*
+	 * Check process pvd binding
+	 */
+	if (FlagProcess) {
+		if (FlagPvd && proc_bind_to_pvd(PvdName) == -1) {
+			fprintf(stderr, "proc_bind_to_pvd(%s) : %s\n", PvdName, strerror(errno));
+			return(1);
+		} else
+		if (! FlagPvd && proc_bind_to_nopvd() == -1) {
+			perror("proc_bind_to_nopvd");
+			fprintf(stderr, "Continuing anyway\n");
+		}
+
+		/*
+		 * Read back the bound pvd
+		 */
+		if ((rc = proc_get_bound_pvd(BoundPvdName)) == -1) {
+			perror("proc_get_bound_pvd");
+			return(1);
+		}
+		if (rc == 0) {
+			printf("Process bound to no pvd\n");
+		}
+		else {
+			printf("Process bound to pvd %s\n", BoundPvdName);
+		}
+		return(0);
+	}
+
+	/*
+	 * Check socket pvd binding
+	 */
 	if ((s = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
 		perror("socket");
 		return(1);
 	}
 
-	if (sock_bind_to_pvd(s, PvdName) == -1) {
+	if (FlagPvd && sock_bind_to_pvd(s, PvdName) == -1) {
 		fprintf(stderr, "sock_bind_to_pvd(%s) : %s\n", PvdName, strerror(errno));
 		close(s);
 		return(1);
 	}
+	if (! FlagPvd && sock_bind_to_nopvd(s) == -1) {
+		perror("sock_bind_to_nopvd");
+		fprintf(stderr, "Continuing anyway\n");
+	}
 
-	rc = sock_get_bound_pvd(s, BoundPvdName);
-
-	if (rc == -1) {
-		fprintf(stderr, "sock_bind_to_pvd(%s) : %s\n", PvdName, strerror(errno));
+	/*
+	 * Read back the bound pvd
+	 */
+	if ((rc = sock_get_bound_pvd(s, BoundPvdName)) == -1) {
+		perror("sock_get_bound_pvd");
 		close(s);
 		return(1);
 	}
 
-	if (rc > 0) {
-		printf("Bound PvD : %s\n", BoundPvdName);
+	if (rc == 0) {
+		printf("Socket bound to no pvd\n");
+	} else {
+		printf("Socket bound to pvd %s\n", BoundPvdName);
 	}
 
 	close(s);
