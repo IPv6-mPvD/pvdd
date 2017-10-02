@@ -855,7 +855,7 @@ int	sock_bind_to_pvd(int s, char *pvdname)
 	struct bind_to_pvd	btp, *pbtp = &btp;
 
 	btp.scope = PVD_BIND_SCOPE_SOCKET;
-	btp.npvd = 1;
+	btp.bindtype = PVD_BIND_ONEPVD;
 	btp.pvdname[PVDNAMSIZ - 1] = '\0';
 	strncpy(btp.pvdname, pvdname, PVDNAMSIZ- 1);
 
@@ -867,7 +867,7 @@ int	sock_bind_to_nopvd(int s)
 	struct bind_to_pvd	btp, *pbtp = &btp;
 
 	btp.scope = PVD_BIND_SCOPE_SOCKET;
-	btp.npvd = 0;
+	btp.bindtype = PVD_BIND_NOPVD;
 
 	return(setsockopt(s, SOL_SOCKET, SO_BINDTOPVD, &pbtp, sizeof(pbtp)));
 }
@@ -877,45 +877,37 @@ int	sock_inherit_bound_pvd(int s)
 	struct bind_to_pvd	btp, *pbtp = &btp;
 
 	btp.scope = PVD_BIND_SCOPE_SOCKET;
-	btp.npvd = -1;
+	btp.bindtype = PVD_BIND_INHERIT;
 
 	return(setsockopt(s, SOL_SOCKET, SO_BINDTOPVD, &pbtp, sizeof(pbtp)));
 }
 
-int	sock_get_bound_pvd(int s, char *pvdname)
+static int	_sock_get_bound_pvd(int s, char *pvdname, int scope)
 {
 	struct bind_to_pvd	btp, *pbtp = &btp;
 	socklen_t		optlen = sizeof(pbtp);
 	int			rc;
 
-	btp.scope = PVD_BIND_SCOPE_SOCKET;
+	btp.scope = scope;
 
 	if ((rc = getsockopt(s, SOL_SOCKET, SO_BINDTOPVD, &pbtp, &optlen)) == 0) {
-		if (btp.npvd == 1) {
+		if (btp.bindtype == PVD_BIND_ONEPVD) {
 			strncpy(pvdname, btp.pvdname, PVDNAMSIZ - 1);
 			pvdname[PVDNAMSIZ - 1] = '\0';
 		}
-		return(btp.npvd);
+		return(btp.bindtype == PVD_BIND_ONEPVD ? 1 : 0);
 	}
 	return(rc);
 }
 
+int	sock_get_bound_pvd(int s, char *pvdname)
+{
+	return(_sock_get_bound_pvd(s, pvdname, PVD_BIND_SCOPE_SOCKET));
+}
+
 int	sock_get_bound_pvd_relaxed(int s, char *pvdname)
 {
-	struct bind_to_pvd	btp, *pbtp = &btp;
-	socklen_t		optlen = sizeof(pbtp);
-	int			rc;
-
-	btp.scope = -1;	/* undocumented feature */
-
-	if ((rc = getsockopt(s, SOL_SOCKET, SO_BINDTOPVD, &pbtp, &optlen)) == 0) {
-		if (btp.npvd == 1) {
-			strncpy(pvdname, btp.pvdname, PVDNAMSIZ - 1);
-			pvdname[PVDNAMSIZ - 1] = '\0';
-		}
-		return(btp.npvd);
-	}
-	return(rc);
+	return(_sock_get_bound_pvd(s, pvdname, -1));	/* undocumented feature */
 }
 
 static int _proc_bind_to_pvd(char *pvdname, int scope)
@@ -929,7 +921,7 @@ static int _proc_bind_to_pvd(char *pvdname, int scope)
 	}
 
 	btp.scope = scope;
-	btp.npvd = 1;
+	btp.bindtype = PVD_BIND_ONEPVD;
 	btp.pvdname[PVDNAMSIZ - 1] = '\0';
 	strncpy(btp.pvdname, pvdname, PVDNAMSIZ- 1);
 
@@ -961,7 +953,7 @@ static int _proc_bind_to_nopvd(int scope)
 	}
 
 	btp.scope = scope;
-	btp.npvd = 0;
+	btp.bindtype = PVD_BIND_NOPVD;
 
 	rc = setsockopt(s, SOL_SOCKET, SO_BINDTOPVD, &pbtp, sizeof(pbtp));
 
@@ -991,7 +983,7 @@ static int _proc_inherit_bound_pvd(int scope)
 	}
 
 	btp.scope = scope;
-	btp.npvd = -1;
+	btp.bindtype = PVD_BIND_INHERIT;
 
 	rc = setsockopt(s, SOL_SOCKET, SO_BINDTOPVD, &pbtp, sizeof(pbtp));
 
@@ -1024,11 +1016,11 @@ static int _proc_get_bound_pvd(char *pvdname, int scope)
 	btp.scope = scope;
 
 	if ((rc = getsockopt(s, SOL_SOCKET, SO_BINDTOPVD, &pbtp, &optlen)) == 0) {
-		if (btp.npvd == 1) {
+		if (btp.bindtype == PVD_BIND_ONEPVD) {
 			strncpy(pvdname, btp.pvdname, PVDNAMSIZ - 1);
 			pvdname[PVDNAMSIZ - 1] = '\0';
 		}
-		rc = btp.npvd;
+		rc = btp.bindtype == PVD_BIND_ONEPVD ? 1 : 0;
 	}
 
 	close(s);

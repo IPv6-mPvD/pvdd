@@ -5,8 +5,8 @@
  * The same file will also be installed for use by user space
  * applications
  *
- * SO_GETPVDINFO, SO_BINDTOPVD and SO_GETRALIST are defined in
- * another uapi header file (asm-generic/socket.h)
+ * SO_BINDTOPVD and Co are defined in another uapi header file
+ * (asm-generic/socket.h)
  */
 #ifndef _LINUX_PVD_USER_H
 #define _LINUX_PVD_USER_H
@@ -46,9 +46,7 @@
 #endif
 
 /*
- * For SO_GETPVDINFO (which returns in one call all pvd and
- * their attributes) or SO_GETPVDATTRIBUTES (which returns
- * the attributes for a given PvD)
+ * For SO_GETPVDATTRIBUTES (which returns the attributes for a pvd)
  *
  * The net_pvd_attribute structure below is a copy of the
  * kernel space pvd structure, with kernel specific items
@@ -90,14 +88,17 @@ struct net_pvd_attribute {
 	struct in6_addr		rdnss[MAXRDNSSPERPVD];
 };
 
-struct pvd_list {
-	int npvd;	/* in/out */
-	char pvds[MAXPVD][PVDNAMSIZ];
-};
-
 struct pvd_attr {
 	char *pvdname;	/* in */
 	struct net_pvd_attribute *pvdattr;	/* out */
+};
+
+/*
+ * For SO_GETPVDLIST (returns the list of pvds)
+ */
+struct pvd_list {
+	int npvd;	/* in/out */
+	char pvds[MAXPVD][PVDNAMSIZ];
 };
 
 /*
@@ -107,15 +108,13 @@ struct pvd_attr {
 #define	PVD_BIND_SCOPE_THREAD	1
 #define	PVD_BIND_SCOPE_PROCESS	2
 
+#define	PVD_BIND_INHERIT	0
+#define	PVD_BIND_NOPVD		1
+#define	PVD_BIND_ONEPVD		2
+
 struct bind_to_pvd {
-	int scope;
-	/*
-	 * npvd : in
-	 * -1 : inherit
-	 *  0 : forcibly unset
-	 *  1 : forcibly set
-	 */
-	int npvd;
+	int scope;	/* PVD_BIND_SCOPE_XXX */
+	int bindtype;	/* PVD_BIND_INHERIT, ... */
 	char pvdname[PVDNAMSIZ];
 };
 
@@ -135,14 +134,6 @@ struct create_pvd {
 #define	PVD_ATTR_HFLAG		0x02
 #define	PVD_ATTR_LFLAG		0x04
 #define	PVD_ATTR_DEPRECATED	0x08
-
-/*
- * For SO_RT6PVD
- */
-struct in6_rt_pvdmsg {
-	char pvdname[PVDNAMSIZ];
-	struct in6_rtmsg rtmsg;
-};
 
 /*
  * RTNETLINK related definitions
@@ -170,7 +161,7 @@ enum {
 };
 
 struct rdnssmsg {
-	char	pvd_name[PVDNAMSIZ];
+	char		pvd_name[PVDNAMSIZ];
 	struct in6_addr	rdnss;
 	int		rdnss_state;	/* NEW, DEL */
 };
