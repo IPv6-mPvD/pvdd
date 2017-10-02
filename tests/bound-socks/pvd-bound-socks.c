@@ -138,6 +138,21 @@ int	main(int argc, char **argv)
 	 * Check process pvd binding
 	 */
 	if (FlagProcess) {
+		/*
+		 * 1st of all, display the current bound pvd for the
+		 * process (might be inherited)
+		 */
+		if ((rc = proc_get_bound_pvd(BoundPvdName)) == -1) {
+			perror("proc_get_bound_pvd");
+			return(1);
+		}
+		if (rc == 0) {
+			printf("Process bound to no pvd\n");
+		}
+		else {
+			printf("Process initially bound to pvd %s\n", BoundPvdName);
+		}
+
 		if (FlagPvd && proc_bind_to_pvd(PvdName) == -1) {
 			fprintf(stderr, "proc_bind_to_pvd(%s) : %s\n", PvdName, strerror(errno));
 			return(1);
