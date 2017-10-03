@@ -91,7 +91,6 @@ int	main(int argc, char **argv, char **env)
 		fprintf(stderr, "execvp(%s) : %s\n", argv[0], strerror(errno));
 	}
 	return(1);
-	
 }
 
 /* ex: set ts=8 noexpandtab wrap: */
