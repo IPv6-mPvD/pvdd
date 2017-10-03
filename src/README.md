@@ -103,14 +103,29 @@ typedef struct {
 #### Binding a socket to a set of PvDs
 
 ~~~~
+#define	PVD_BIND_SCOPE_SOCKET	0
+#define	PVD_BIND_SCOPE_THREAD	1
+#define	PVD_BIND_SCOPE_PROCESS	2
+
+#define	PVD_BIND_INHERIT	0
+#define	PVD_BIND_NOPVD		1
+#define	PVD_BIND_ONEPVD		2
+
 struct bind_to_pvd {
-	int	npvd;	/* in/out */
-	char	pvdnames[MAXBOUNDPVD][PVDNAMSIZ];
+	int scope;	/* PVD_BIND_SCOPE_XXX */
+	int bindtype;	/* PVD_BIND_INHERIT, ... */
+	char pvdname[PVDNAMSIZ];
 };
 ~~~~
 
-This structure can be used to specify the preferred set of PvD a socket must be bound
-to, but also to retrieve the current set of bound PvD for a given socket.
+This structure can be used to specify the preferred way of binding a PvD to a socket,
+but also to retrieve the current set of bound PvD for a given socket.
+
+More on that at the end of this README, in the kernel wrappers section.
+
+Note that this structure (and the associated constants) is internally used by the
+kernel wrapper functions and is not visible to the application (have a look at the
+source code to see how it can be used).
 
 #### Retrieving the list of PvD known by the kernel
 
@@ -131,8 +146,9 @@ struct net_pvd_attribute {
 	int			sequence_number;
 	int			h_flag;
 	int			l_flag;
-
-	unsigned long		expires;	/* lifetime field */
+	int			implicit_flag;
+	struct in6_addr		lla;
+	char			dev[IFNAMSIZ];
 
 	/*
 	 * Induced attributes
@@ -150,16 +166,16 @@ struct net_pvd_attribute {
 	struct in6_addr		rdnss[MAXRDNSSPERPVD];
 };
 
-struct pvd_list {
-	int npvd;	/* in/out */
-	char pvds[MAXPVD][PVDNAMSIZ];
-};
-
 struct pvd_attr {
 	char *pvdname;	/* in */
 	struct net_pvd_attribute *pvdattr;	/* out */
 };
 
+typedef	struct
+{
+	int	npvd;
+	char	*pvdnames[MAXPVD];
+}	t_pvd_list;
 ~~~~
 
 Although this information can be obtained from the daemon, it can also be retrieved
