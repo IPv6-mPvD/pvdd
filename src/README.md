@@ -370,23 +370,71 @@ talking to the daemon).
 
 ~~~~
 extern	int	sock_bind_to_pvd(int s, char *pvdname);
+extern	int	sock_bind_to_nopvd(int s);
+extern	int	sock_inherit_bound_pvd(int s);
 extern	int	sock_get_bound_pvd(int s, char *pvdname);
+extern	int	sock_get_bound_pvd_relaxed(int s, char *pvdname);
+
+
+extern	int	thread_bind_to_pvd(char *pvdname);
+extern	int	thread_bind_to_nopvd(void);
+extern	int	thread_inherit_bound_pvd(void);
+extern	int	thread_get_bound_pvd(char *pvdname);
+
+extern	int	proc_bind_to_pvd(char *pvdname);
+extern	int	proc_bind_to_nopvd(void);
+extern	int	proc_inherit_bound_pvd(void);
+extern	int	proc_get_bound_pvd(char *pvdname);
+
 extern	int	kernel_get_pvdlist(struct pvd_list *pvl);
 extern	int	kernel_get_pvd_attributes(char *pvdname, struct net_pvd_attribute *attr);
 extern	int	kernel_create_pvd(char *pvdname);
 extern	int	kernel_update_pvd_attr(char *pvdname, char *attrName, char *attrValue);
 ~~~~
 
-_sock\_bind\_to\_pvd()_ and _sock\_get\_bound\_pvd()_ might be used if an application wishes to
-bind a socket to a single PvD. Here, _s_ is a socket, and not a connection socket with
-the daemon.
+A few functions are related to binding a socket to a socket. There are multiple kind of
+bindings :
 
-The general case being that a socket can be bound to a multitude of PvDs, these
-functions are of limited use and merely serve (for those having access to the source
-code of the library) as an example.
+* binding to a specific pvd
+* explicitely binding to no pvd (which, in fact, is similar to make use of any pvd : standard
+behaviour)
+* not specifying any binding at the socket level, but let bindings be defined at the thread
+or process level (inheritance).
 
-The _pvdname_ parameter of _sock\_get\_bound\_pvd()_ is the address of an array of sufficient size
+Binding a socket to a pvd effects how routes are selected (they must be within the selected
+pvd) and how the source address is chosen (once again, the source address must be within
+the selected pvd). If no pvd has been selected, the usual/legacy selection mechanisms of the
+kernel take place.
+
+Specifying a pvd can be done at three levels :
+
+* the socket level itself : this only applies to the selected socket
+* the thread level : if inheritance has been specified at the socket level (default
+setting), the setting specified by the _thread\_xxx()_ calls is used
+* the process level : if inheritance has been specified at the thread level, the
+setting specified by the _proc\_xxx()_ calls is used.
+
+To have something consistent with non pvd aware kernels, defaults are inheritance and
+no pvd at the process level.
+
+NOTE : the socket specified in these functions are application sockets and not connection
+with the pvdd daemon.
+
+The _pvdname_ parameter of _xxx\_get\_bound\_pvd()_ is the address of a buffer of sufficient size
 (aka PVDNAMSIZ).
+
+Contrary to the _sock\_get\_bound\_pvd()_ function, which returns 0 is the socket has
+been configured to be bound to a pvd, the _sock\_get\_get\_bound\_pvd\_relaxed()_ function
+checks first the socket level, then the thread level, then the process level in case
+of inheritance.
+
+For now (but that may be changed), the provided pvd name is not always immdiately checked for
+existence :
+
+* an unknown pvd specified for a socket returns -1 (errno = ENETUNREACH)
+* an unknown pvd specified for the thread or process level does not trigger any error at
+the time of the binding operation. An error (ENETUNREACH) is however raised at connection
+time (for TCP connections), ot during sendto() calls.
 
 The _pvl_ parameter of the _kernel\_get\_pvdlist()_ function must be initialized by the
 caller : the __npvd__ field of the structure must contain the dimension of the
@@ -406,7 +454,6 @@ They are :
 + __sequenceNumber__ : the PvD sequence number (an integer between 0 and 15 [4 bits])
 + __hFlag__ : the h flag of the PvD (0 or 1)
 + __lFlag__ : the l flag of the PvD (0 or 1)
-+ __lifetime__ : the expire value of the PvD (an integer)
 + __rdnss__ : the list of DNS recursive servers associated to this PvD (array of strings)
 + __dnssl__ : the list of DNS lookup domains (array of strings)
 + __extraInfo__ : the JSON structure retrieved from https://\<pvdname\>/pvd.json
