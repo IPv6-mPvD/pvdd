@@ -169,6 +169,8 @@ static	int	usage(char *s)
 	fprintf(fo, "where option :\n");
 	fprintf(fo, "\t-v|--verbose\n");
 	fprintf(fo,
+		"\t-n|--no-pvd-support : the kernel has no pvd support\n");
+	fprintf(fo,
 		"\t-p|--port <#> : port number for clients requests (default %d)\n",
 		DEFAULT_PVDD_PORT);
 	fprintf(fo,
@@ -176,6 +178,16 @@ static	int	usage(char *s)
 	fprintf(fo,
 		"\n"
 		"Clients using the companion library can set the PVDD_PORT environment\n");
+	fprintf(fo,
+		"\nBy default, pvdd attempts to guess if the kernel is pvd aware. If this\n");
+	fprintf(fo,
+		"fails (in other terms, if pvdd thinks that the kernel is pvd aware\n");
+	fprintf(fo,
+		"when it is in fact not), try passing the -n|--no-pvd-support flag. This\n");
+	fprintf(fo,
+		"will make pvdd  fall back in a degraded mode where it parses itself\n");
+	fprintf(fo,
+		"RAs\n");
 
 	return(s == NULL ? 0 : 1);
 }
@@ -1642,6 +1654,7 @@ int	main(int argc, char **argv)
 	struct pvd_list	pvl;	/* careful : this can be quite big */
 	t_rtnetlink_cnx	*RtnlCnx = NULL;
 	int		sockRtnlink = -1;
+	int		FlagAutodetect = true;
 
 	lMyName = basename(strdup(argv[0]));	// valgrind : leak on strdup
 
@@ -1652,6 +1665,10 @@ int	main(int argc, char **argv)
 		}
 		if (EQSTR(argv[i], "-v") || EQSTR(argv[i], "--verbose")) {
 			lFlagVerbose = true;
+			continue;
+		}
+		if (EQSTR(argv[i], "-n") || EQSTR(argv[i], "--no-pvd-support")) {
+			FlagAutodetect = false;
 			continue;
 		}
 		if (EQSTR(argv[i], "-p") || EQSTR(argv[i], "--port")) {
@@ -1715,6 +1732,10 @@ int	main(int argc, char **argv)
 	 *
 	 * Ultimately, support for the 1st case will be dropped
 	 */
+	if (! FlagAutodetect) {
+		goto AutodetectDone;
+	}
+
 	pvl.npvd = MAXPVD;
 	if (kernel_get_pvdlist(&pvl) != -1) {
 		struct net_pvd_attribute attr;
@@ -1742,6 +1763,7 @@ int	main(int argc, char **argv)
 		}
 	}
 
+AutodetectDone :
 	if (lFlagVerbose) {
 		fprintf(stderr,
 			"+++ Kernel %s PvD support\n",

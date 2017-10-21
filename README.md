@@ -27,11 +27,17 @@ associated attributes) by calling dedicated new kernel functions.
 pvdd [-h|--help] <option>*
 where option :
         -v|--verbose
+        -n|--no-pvd-support : the kernel has no pvd support
         -p|--port <#> : port number for clients requests (default 10101)
         -d|--dir <path> : directory in which information is stored (none by default)
 
 Clients using the companion library can set the PVDD_PORT environment
-variable to specify another port than the default one
+
+By default, pvdd attempts to guess if the kernel is pvd aware. If this
+fails (in other terms, if pvdd thinks that the kernel is pvd aware
+when it is in fact not), try passing the -n|--no-pvd-support flag. This
+will make pvdd  fall back in a degraded mode where it parses itself
+RAs
 ~~~~
 
 Note that the __--dir__ option is of no use for now.
@@ -61,6 +67,10 @@ This capacity to start without a netlink socket is obviously mostly useful only 
 
 pvdd assumes that the kernel it is running on is PvD-aware if calling one of the added PvD kernel functions
 does not report any error (the kernel function to retrieve the list of the PvD currently seen by the kernel).
+
+WARNING : unfortunately, the way this has been implemented makes the autodetection return false positive.
+In other terms, the daemon may think it is running on a pvd-aware kernel when in fact it is not. To avoid
+this situation, one can pass the __-n|--no-pvd-aware__ flag on the command line.
 
 On PvD-aware kernels, the rtnetlink mechanism already provided by the kernel to notify new addresses or routes
 has been extended to report creation/update/deprecation of PvD.
