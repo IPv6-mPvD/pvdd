@@ -677,6 +677,7 @@ static	t_Pvd	*RegisterPvd(int pvdid, char *pvdname)
 	PvdSetAttr(PtPvd, "sequenceNumber", "0");
 	PvdSetAttr(PtPvd, "hFlag", "0");	// by default
 	PvdSetAttr(PtPvd, "lFlag", "0");
+	PvdSetAttr(PtPvd, "aFlag", "0");   // introduced in draft-01
 
 	// Link it at the head of the list
 	PtPvd->next = lFirstPvd;
@@ -1465,6 +1466,7 @@ static	int	RegisterPvdAttributes(struct net_pvd_attribute *pa)
 		GetIntStr(pa->sequence_number));
 	PvdSetAttr(PtPvd, "hFlag", GetIntStr(pa->h_flag));
 	PvdSetAttr(PtPvd, "lFlag", GetIntStr(pa->l_flag));
+	PvdSetAttr(PtPvd, "aFlag", GetIntStr(pa->a_flag));   // introduced in draft-01
 	PvdSetAttr(PtPvd, "implicit", pa->implicit_flag ? "true" : "false");
 	PvdSetAttr(
 		PtPvd,
@@ -1610,7 +1612,7 @@ static	void	HandleRtNetlink(t_rtnetlink_cnx *cnx)
 				if (rc != 0) {
 					NotifyPvdAttributes(PtPvd);
 				}
-			}
+			}		
 		}
 		return;
 	}
