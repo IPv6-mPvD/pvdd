@@ -132,7 +132,7 @@ struct nd_opt_dnssl_info_local {
  * nd_opt_pvdidi_reserved2 : 00000000
  */
 #ifndef	ND_OPT_PVDID
-#define	ND_OPT_PVDID	253	// Waiting for IANA attribution
+#define	ND_OPT_PVDID	21	// temporary allocation from IANA
 #endif
 
 struct nd_opt_pvd_info_local {
@@ -165,6 +165,7 @@ char *addrtostr(struct in6_addr const *addr, char *str, size_t str_size)
  * if such pvd option is found in the RA. Othewise, the RA will be an pvd orphan !
  *
  * We must take care of RA with nd_ra_router_lifetime == 0 (RA is becoming invalid)
+ * TODO: the ra parsing behaviour is not yet inline with the draft-01
  */
 void process_ra(unsigned char *msg,
 		int len,
