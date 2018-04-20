@@ -1,5 +1,6 @@
-#ifndef __LINUX_RTNETLINK_H
-#define __LINUX_RTNETLINK_H
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
+#ifndef _UAPI__LINUX_RTNETLINK_H
+#define _UAPI__LINUX_RTNETLINK_H
 
 #include <linux/types.h>
 #include <linux/netlink.h>
@@ -146,11 +147,14 @@ enum {
 	RTM_GETSTATS = 94,
 #define RTM_GETSTATS RTM_GETSTATS
 
-	RTM_PVDSTATUS = 96,
+	RTM_NEWCACHEREPORT = 96,
+#define RTM_NEWCACHEREPORT RTM_NEWCACHEREPORT
+
+	RTM_PVDSTATUS = 100,
 #define RTM_PVDSTATUS RTM_PVDSTATUS
-	RTM_RDNSS = 97,
+	RTM_RDNSS = 101,
 #define RTM_RDNSS RTM_RDNSS
-	RTM_DNSSL = 98,
+	RTM_DNSSL = 102,
 #define RTM_DNSSL RTM_DNSSL
 
 	__RTM_MAX,
@@ -285,6 +289,7 @@ enum rt_scope_t {
 #define RTM_F_EQUALIZE		0x400	/* Multipath equalizer: NI	*/
 #define RTM_F_PREFIX		0x800	/* Prefix addresses		*/
 #define RTM_F_LOOKUP_TABLE	0x1000	/* set rtm_table to FIB lookup result */
+#define RTM_F_FIB_MATCH	        0x2000	/* return full fib lookup match */
 
 /* Reserved table identifiers */
 
@@ -434,6 +439,8 @@ enum {
 #define RTAX_QUICKACK RTAX_QUICKACK
 	RTAX_CC_ALGO,
 #define RTAX_CC_ALGO RTAX_CC_ALGO
+	RTAX_FASTOPEN_NO_COOKIE,
+#define RTAX_FASTOPEN_NO_COOKIE RTAX_FASTOPEN_NO_COOKIE
 	__RTAX_MAX
 };
 
@@ -557,6 +564,8 @@ enum {
 	TCA_STAB,
 	TCA_PAD,
 	TCA_DUMP_INVISIBLE,
+	TCA_CHAIN,
+	TCA_HW_OFFLOAD,
 	__TCA_MAX
 };
 
@@ -589,6 +598,7 @@ enum {
 
 #define NDUSEROPT_MAX	(__NDUSEROPT_MAX - 1)
 
+#ifndef __KERNEL__
 /* RTnetlink multicast groups - backwards compatibility for userspace */
 #define RTMGRP_LINK		1
 #define RTMGRP_NOTIFY		2
@@ -609,6 +619,7 @@ enum {
 #define RTMGRP_DECnet_ROUTE     0x4000
 
 #define RTMGRP_IPV6_PREFIX	0x20000
+#endif
 
 /* RTnetlink multicast groups */
 enum rtnetlink_groups {
@@ -670,10 +681,12 @@ enum rtnetlink_groups {
 #define RTNLGRP_NSID		RTNLGRP_NSID
 	RTNLGRP_MPLS_NETCONF,
 #define RTNLGRP_MPLS_NETCONF	RTNLGRP_MPLS_NETCONF
-
+	RTNLGRP_IPV4_MROUTE_R,
+#define RTNLGRP_IPV4_MROUTE_R	RTNLGRP_IPV4_MROUTE_R
+	RTNLGRP_IPV6_MROUTE_R,
+#define RTNLGRP_IPV6_MROUTE_R	RTNLGRP_IPV6_MROUTE_R
 	RTNLGRP_PVD,
 #define RTNLGRP_PVD		RTNLGRP_PVD
-
 	__RTNLGRP_MAX
 };
 #define RTNLGRP_MAX	(__RTNLGRP_MAX - 1)
@@ -684,10 +697,29 @@ struct tcamsg {
 	unsigned char	tca__pad1;
 	unsigned short	tca__pad2;
 };
+
+enum {
+	TCA_ROOT_UNSPEC,
+	TCA_ROOT_TAB,
+#define TCA_ACT_TAB TCA_ROOT_TAB
+#define TCAA_MAX TCA_ROOT_TAB
+	TCA_ROOT_FLAGS,
+	TCA_ROOT_COUNT,
+	TCA_ROOT_TIME_DELTA, /* in msecs */
+	__TCA_ROOT_MAX,
+#define	TCA_ROOT_MAX (__TCA_ROOT_MAX - 1)
+};
+
 #define TA_RTA(r)  ((struct rtattr*)(((char*)(r)) + NLMSG_ALIGN(sizeof(struct tcamsg))))
 #define TA_PAYLOAD(n) NLMSG_PAYLOAD(n,sizeof(struct tcamsg))
-#define TCA_ACT_TAB 1 /* attr type must be >=1 */	
-#define TCAA_MAX 1
+/* tcamsg flags stored in attribute TCA_ROOT_FLAGS
+ *
+ * TCA_FLAG_LARGE_DUMP_ON user->kernel to request for larger than TCA_ACT_MAX_PRIO
+ * actions in a dump. All dump responses will contain the number of actions
+ * being dumped stored in for user app's consumption in TCA_ROOT_COUNT
+ *
+ */
+#define TCA_FLAG_LARGE_DUMP_ON		(1 << 0)
 
 /* New extended info filters for IFLA_EXT_MASK */
 #define RTEXT_FILTER_VF		(1 << 0)
@@ -699,4 +731,4 @@ struct tcamsg {
 
 
 
-#endif /* __LINUX_RTNETLINK_H */
+#endif /* _UAPI__LINUX_RTNETLINK_H */
