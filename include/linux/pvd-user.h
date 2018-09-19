@@ -68,6 +68,7 @@ struct net_pvd_attribute {
 	int			sequence_number;
 	int			h_flag;
 	int			l_flag;
+	int 		a_flag;  // introduced in 01
 	int			implicit_flag;
 	struct in6_addr		lla;
 	char			dev[IFNAMSIZ];

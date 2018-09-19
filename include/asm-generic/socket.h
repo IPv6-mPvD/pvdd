@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 #ifndef __ASM_GENERIC_SOCKET_H
 #define __ASM_GENERIC_SOCKET_H
 
@@ -94,10 +95,23 @@
 
 #define SCM_TIMESTAMPING_OPT_STATS	54
 
+#define SO_MEMINFO		55
+
+#define SO_INCOMING_NAPI_ID	56
+
+#define SO_COOKIE		57
+
+#define SCM_TIMESTAMPING_PKTINFO	58
+
+#define SO_PEERGROUPS		59
+
+#define SO_ZEROCOPY		60
+
 /* PVD specific options (FIXME : probably not the best place) */
-#define	SO_BINDTOPVD		55
-#define	SO_GETPVDLIST		56
-#define	SO_GETPVDATTRIBUTES	57
-#define	SO_CREATEPVD		58
+#define	SO_BINDTOPVD		61
+#define	SO_GETPVDLIST		62
+#define	SO_GETPVDATTRIBUTES	63
+#define	SO_CREATEPVD		64
+
 
 #endif /* __ASM_GENERIC_SOCKET_H */

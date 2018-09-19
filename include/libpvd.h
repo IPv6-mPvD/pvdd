@@ -20,19 +20,19 @@
 #include <linux/pvd-user.h>
 
 #ifndef	SO_BINDTOPVD
-#define	SO_BINDTOPVD	55
+#define	SO_BINDTOPVD	61
 #endif
 
 #ifndef	SO_GETPVDLIST
-#define	SO_GETPVDLIST		56
+#define	SO_GETPVDLIST		62
 #endif
 
 #ifndef	SO_GETPVDATTRIBUTES
-#define	SO_GETPVDATTRIBUTES	57
+#define	SO_GETPVDATTRIBUTES	63
 #endif
 
 #ifndef	SO_CREATEPVD
-#define	SO_CREATEPVD	58
+#define	SO_CREATEPVD	64
 #endif
 
 /*

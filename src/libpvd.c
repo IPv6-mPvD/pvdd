@@ -1128,7 +1128,7 @@ int	kernel_update_pvd_attr(char *pvdname, char *attrName, char *attrValue)
 	} else
 	if (EQSTR(attrName, "sequenceNumber")) {
 		cpvd.flag = PVD_ATTR_SEQNUMBER;
-		cpvd.sequence_number = value % 15;
+		cpvd.sequence_number = value & 0x0FFFF;  // in draft-01, the seq is 16 bit
 	} else
 	if (EQSTR(attrName, ".deprecated")) {
 		cpvd.flag = PVD_ATTR_DEPRECATED;
